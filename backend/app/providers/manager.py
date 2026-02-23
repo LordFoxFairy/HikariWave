@@ -25,6 +25,8 @@ LLM_PROVIDER_CLASSES: dict[str, type[BaseLLMProvider]] = {
 
 MUSIC_PROVIDER_CLASSES: dict[str, type[BaseMusicProvider]] = {
     "ace-step-v1": ACEStepProvider,
+    "musicgen-small": MusicGenProvider,
+    "musicgen-medium": MusicGenProvider,
     "musicgen-large": MusicGenProvider,
 }
 
@@ -78,8 +80,16 @@ class ProviderManager:
             self._llm_providers[name] = cls(cfg)
 
     def _init_music_providers(self) -> None:
+        self._music_providers.clear()
         for entry in self._config.get("music", {}).get("providers", []):
-            for model_name in entry.get("models", []):
+            for model_entry in entry.get("models", []):
+                # Support both string and dict model entries
+                if isinstance(model_entry, dict):
+                    model_name = model_entry["name"]
+                    model_id = model_entry.get("model_id", "")
+                else:
+                    model_name = model_entry
+                    model_id = ""
                 cls = MUSIC_PROVIDER_CLASSES.get(model_name)
                 if cls is None:
                     logger.warning("Unknown music model: %s", model_name)
@@ -88,6 +98,7 @@ class ProviderManager:
                     name=f"{entry['name']}:{model_name}",
                     provider_type=entry.get("type", "local_gpu"),
                     model_name=model_name,
+                    model_id=model_id,
                 )
                 key = f"{entry['name']}:{model_name}"
                 self._music_providers[key] = cls(cfg)
