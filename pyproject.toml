@@ -41,7 +41,7 @@ build-backend = "hatchling.build"
 packages = ["backend"]
 
 [tool.hatch.envs.default.scripts]
-dev = "uvicorn backend.app.main:app --reload --port 8000"
+dev = "uvicorn backend.app.main:app --reload --port 23456"
 lint = "ruff check backend/"
 fmt = "ruff format backend/"
 

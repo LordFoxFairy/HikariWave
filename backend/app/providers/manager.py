@@ -130,6 +130,7 @@ class ProviderManager:
             result.append(
                 {
                     "name": name,
+                    "provider_type": "api",
                     "models": p.config.models,
                     "is_active": name in self._llm_router.get("default", ""),
                 }
@@ -156,9 +157,9 @@ class ProviderManager:
             result.append(
                 {
                     "name": key,
-                    "model": p.config.model_name,
-                    "type": p.config.provider_type,
-                    "is_loaded": p.is_loaded,
+                    "provider_type": p.config.provider_type,
+                    "models": [p.config.model_name],
+                    "is_active": p.is_loaded,
                 }
             )
         return result
@@ -181,9 +182,9 @@ class ProviderManager:
             result.append(
                 {
                     "name": key,
-                    "model": p.config.model_name,
-                    "type": p.config.provider_type,
-                    "is_loaded": p.is_loaded,
+                    "provider_type": p.config.provider_type,
+                    "models": [p.config.model_name],
+                    "is_active": p.is_loaded,
                 }
             )
         return result

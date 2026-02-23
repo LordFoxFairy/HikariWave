@@ -18,7 +18,7 @@ frontend:
 
 # 仅启动后端
 backend:
-	uv run uvicorn backend.app.main:app --reload --port 8000
+	uv run uvicorn backend.app.main:app --reload --port 23456
 
 # 安装所有依赖
 install:

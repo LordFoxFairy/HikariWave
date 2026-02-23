@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     # API
     api_prefix: str = "/api/v1"
+    port: int = 23456
     cors_origins: list[str] = ["*"]
 
     # Database

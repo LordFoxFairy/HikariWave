@@ -46,11 +46,3 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=settings.api_prefix)
-
-
-@app.get("/api/v1/health")
-async def health_check():
-    return {
-        "status": "ok",
-        "version": settings.app_version,
-    }
