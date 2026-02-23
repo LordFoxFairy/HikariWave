@@ -42,6 +42,7 @@ export default function SettingsPage() {
         if (!cancelled) setHealthOk(false);
       }
       try {
+        // api.getProviders() already extracts .providers from the response
         const [llm, music] = await Promise.all([
           api.getProviders("llm"),
           api.getProviders("music"),

@@ -95,6 +95,7 @@ export default function Player() {
     if (!currentTrack?.audio_path) return;
     const ws = initWaveSurfer();
     if (ws) {
+      // api.getAudioUrl extracts basename from full filesystem path
       const url = api.getAudioUrl(currentTrack.audio_path);
       ws.load(url);
       ws.on("ready", () => ws.play());
@@ -125,7 +126,8 @@ export default function Player() {
     const url = api.getAudioUrl(currentTrack.audio_path);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${currentTrack.prompt.slice(0, 30)}.wav`;
+    const fileName = currentTrack.title || currentTrack.prompt.slice(0, 30);
+    a.download = `${fileName}.wav`;
     a.click();
   };
 
@@ -133,6 +135,8 @@ export default function Player() {
 
   const liked = likedIds.has(currentTrack.id);
   const gradient = getGenreGradient(currentTrack.genre);
+  const hasCover = !!currentTrack.cover_art_path;
+  const displayTitle = currentTrack.title || currentTrack.prompt.slice(0, 40);
 
   return (
     <AnimatePresence>
@@ -143,19 +147,27 @@ export default function Player() {
         className="h-[72px] bg-white border-t border-border
                    flex items-center px-4 gap-3"
       >
-        {/* Genre-colored thumbnail */}
-        <div
-          className={`w-11 h-11 rounded-lg bg-gradient-to-br ${gradient}
-                      flex items-center justify-center flex-shrink-0
-                      shadow-sm`}
-        >
-          <Music className="w-5 h-5 text-white/90" />
-        </div>
+        {/* Cover art or genre-colored thumbnail */}
+        {hasCover ? (
+          <img
+            src={api.getCoverArtUrl(currentTrack.cover_art_path!)}
+            alt="Cover"
+            className="w-11 h-11 rounded-lg object-cover flex-shrink-0 shadow-sm"
+          />
+        ) : (
+          <div
+            className={`w-11 h-11 rounded-lg bg-gradient-to-br ${gradient}
+                        flex items-center justify-center flex-shrink-0
+                        shadow-sm`}
+          >
+            <Music className="w-5 h-5 text-white/90" />
+          </div>
+        )}
 
         {/* Track info + heart */}
         <div className="w-40 flex-shrink-0 min-w-0">
           <p className="text-sm font-medium text-text-primary truncate">
-            {currentTrack.prompt.slice(0, 40)}
+            {displayTitle}
           </p>
           <p className="text-xs text-text-tertiary mt-0.5 truncate">
             {currentTrack.genre || "Generated"}

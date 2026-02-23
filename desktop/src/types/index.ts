@@ -14,6 +14,16 @@ export interface Generation {
   genre?: string;
   mood?: string;
   duration: number;
+  title?: string;
+  cover_art_path?: string;
+  tempo?: number;
+  musical_key?: string;
+  instruments?: string[];
+  language?: string;
+  instrumental?: boolean;
+  progress?: number;
+  parent_id?: number;
+  parent_type?: string;
   llm_provider?: string;
   music_provider: string;
   audio_path?: string;
@@ -31,16 +41,26 @@ export interface GenerateMusicRequest {
   genre?: string;
   mood?: string;
   duration?: number;
+  title?: string;
+  tempo?: number;
+  musical_key?: string;
+  instruments?: string[];
+  language?: string;
+  instrumental?: boolean;
+  generate_cover?: boolean;
 }
 
 export interface GenerateLyricsRequest {
   prompt: string;
   genre?: string;
   mood?: string;
+  language?: string;
 }
 
 export interface GenerateLyricsResponse {
   lyrics: string;
+  genre?: string;
+  mood?: string;
   suggestions?: StyleSuggestion;
 }
 
@@ -53,26 +73,43 @@ export interface EnhancePromptResponse {
 }
 
 export interface StyleSuggestion {
-  genre: string;
-  sub_genre: string;
-  tempo: string;
-  key: string;
+  genres: string[];
+  moods: string[];
+  tempo: number;
+  musical_key: string;
   instruments: string[];
+  title_suggestion: string;
   references: string[];
 }
 
+export interface StyleSuggestRequest {
+  prompt: string;
+  genre?: string;
+  mood?: string;
+}
+
+export interface TitleGenerateRequest {
+  lyrics: string;
+  genre?: string;
+  mood?: string;
+}
+
 export interface TaskStatus {
+  id: number;
   task_id: string;
   status: GenerationStatus;
   progress?: number;
-  message?: string;
+  prompt: string;
+  audio_path?: string;
+  error_message?: string;
 }
 
 export interface ProviderInfo {
   name: string;
-  provider_type: "llm" | "music";
+  provider_type: string;
   models: string[];
   is_active: boolean;
+  is_healthy?: boolean;
 }
 
 export interface MusicConfig {
@@ -87,7 +124,6 @@ export interface MusicConfig {
 }
 
 export type CreateMode = "smart" | "custom";
-export type CreateStep = "input" | "config" | "preview" | "generating" | "result";
 
 export interface AppSettings {
   backendUrl: string;

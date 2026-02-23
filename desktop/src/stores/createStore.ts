@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { GenerationStatus, CreateMode, CreateStep } from "../types";
+import type { GenerationStatus, CreateMode } from "../types";
 
 export const GENRE_OPTIONS = [
   "Pop", "Rock", "Jazz", "Electronic", "Hip-Hop", "R&B",
@@ -34,8 +34,8 @@ export const LANGUAGE_OPTIONS = [
 
 interface CreateState {
   mode: CreateMode;
-  step: CreateStep;
   prompt: string;
+  title: string;
   lyrics: string;
   selectedGenres: string[];
   selectedMoods: string[];
@@ -49,10 +49,12 @@ interface CreateState {
   currentTaskId: string | null;
   progress: number;
   aiSuggesting: Record<string, boolean>;
+  errorMessage: string | null;
+  successMessage: string | null;
 
   setMode: (mode: CreateMode) => void;
-  setStep: (step: CreateStep) => void;
   setPrompt: (prompt: string) => void;
+  setTitle: (title: string) => void;
   setLyrics: (lyrics: string) => void;
   toggleGenre: (genre: string) => void;
   toggleMood: (mood: string) => void;
@@ -66,20 +68,23 @@ interface CreateState {
   setCurrentTaskId: (id: string | null) => void;
   setProgress: (progress: number) => void;
   setAiSuggesting: (field: string, loading: boolean) => void;
+  setErrorMessage: (msg: string | null) => void;
+  setSuccessMessage: (msg: string | null) => void;
   applyAiSuggestions: (data: {
     genres?: string[];
     moods?: string[];
     tempo?: number;
     musicalKey?: string;
     instruments?: string[];
+    title?: string;
   }) => void;
   reset: () => void;
 }
 
 const initialState = {
   mode: "smart" as CreateMode,
-  step: "input" as CreateStep,
   prompt: "",
+  title: "",
   lyrics: "",
   selectedGenres: [] as string[],
   selectedMoods: [] as string[],
@@ -93,14 +98,16 @@ const initialState = {
   currentTaskId: null as string | null,
   progress: 0,
   aiSuggesting: {} as Record<string, boolean>,
+  errorMessage: null as string | null,
+  successMessage: null as string | null,
 };
 
 export const useCreateStore = create<CreateState>((set) => ({
   ...initialState,
 
-  setMode: (mode) => set({ mode, step: "input" }),
-  setStep: (step) => set({ step }),
+  setMode: (mode) => set({ mode }),
   setPrompt: (prompt) => set({ prompt }),
+  setTitle: (title) => set({ title }),
   setLyrics: (lyrics) => set({ lyrics }),
   toggleGenre: (genre) =>
     set((s) => ({
@@ -132,6 +139,8 @@ export const useCreateStore = create<CreateState>((set) => ({
     set((s) => ({
       aiSuggesting: { ...s.aiSuggesting, [field]: loading },
     })),
+  setErrorMessage: (msg) => set({ errorMessage: msg }),
+  setSuccessMessage: (msg) => set({ successMessage: msg }),
   applyAiSuggestions: (data) =>
     set((s) => ({
       selectedGenres: data.genres ?? s.selectedGenres,
@@ -139,6 +148,7 @@ export const useCreateStore = create<CreateState>((set) => ({
       tempo: data.tempo ?? s.tempo,
       musicalKey: data.musicalKey ?? s.musicalKey,
       instruments: data.instruments ?? s.instruments,
+      title: data.title ?? s.title,
     })),
   reset: () => set(initialState),
 }));

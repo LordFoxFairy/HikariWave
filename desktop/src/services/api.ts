@@ -5,8 +5,10 @@ import type {
   GenerateLyricsResponse,
   EnhancePromptRequest,
   EnhancePromptResponse,
-  TaskStatus,
   ProviderInfo,
+  StyleSuggestRequest,
+  StyleSuggestion,
+  TitleGenerateRequest,
 } from "../types";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:8000/api/v1";
@@ -42,7 +44,7 @@ async function request<T>(
 
 export const api = {
   generateMusic(data: GenerateMusicRequest) {
-    return request<{ task_id: string }>("/generate/music", {
+    return request<{ task_id: string; status: string }>("/generate/music", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -62,12 +64,30 @@ export const api = {
     });
   },
 
-  getTaskStatus(taskId: string) {
-    return request<TaskStatus>(`/tasks/${taskId}`);
+  suggestStyle(data: StyleSuggestRequest) {
+    return request<StyleSuggestion>("/generate/suggest-style", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 
-  getGenerations() {
-    return request<Generation[]>("/generations");
+  generateTitle(data: TitleGenerateRequest) {
+    return request<{ title: string }>("/generate/title", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async getTaskStatus(taskId: string) {
+    // Backend returns a full GenerationResponse from /tasks/{taskId}
+    const gen = await request<Generation>(`/tasks/${taskId}`);
+    return gen;
+  },
+
+  async getGenerations() {
+    // Backend returns {items: Generation[], total: number}
+    const data = await request<{ items: Generation[]; total: number }>("/generations");
+    return data.items;
   },
 
   getGeneration(id: number) {
@@ -78,12 +98,21 @@ export const api = {
     return request<void>(`/generations/${id}`, { method: "DELETE" });
   },
 
-  getProviders(type: "llm" | "music") {
-    return request<ProviderInfo[]>(`/providers/${type}`);
+  async getProviders(type: "llm" | "music") {
+    // Backend returns {providers: ProviderInfo[]}
+    const data = await request<{ providers: ProviderInfo[] }>(`/providers/${type}`);
+    return data.providers;
   },
 
-  getAudioUrl(fileId: string) {
-    return `${baseUrl}/audio/${fileId}`;
+  getAudioUrl(audioPath: string) {
+    // Extract basename from full filesystem path
+    const basename = audioPath.split("/").pop() || audioPath;
+    return `${baseUrl}/audio/${basename}`;
+  },
+
+  getCoverArtUrl(coverPath: string) {
+    const basename = coverPath.split("/").pop() || coverPath;
+    return `${baseUrl}/cover/${basename}`;
   },
 
   healthCheck() {

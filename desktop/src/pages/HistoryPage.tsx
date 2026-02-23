@@ -59,10 +59,11 @@ export default function HistoryPage() {
   const loadGenerations = async () => {
     setLoading(true);
     try {
+      // api.getGenerations() already extracts .items from the response
       const data = await api.getGenerations();
       setGenerations(data);
     } catch {
-      /* TODO: error handling */
+      // Backend might not be running
     } finally {
       setLoading(false);
     }
@@ -73,7 +74,7 @@ export default function HistoryPage() {
       await api.deleteGeneration(id);
       setGenerations((g) => g.filter((x) => x.id !== id));
     } catch {
-      /* TODO */
+      // Silent fail for now
     }
   };
 
@@ -85,11 +86,16 @@ export default function HistoryPage() {
         (g) =>
           g.prompt.toLowerCase().includes(q) ||
           g.genre?.toLowerCase().includes(q) ||
-          g.mood?.toLowerCase().includes(q),
+          g.mood?.toLowerCase().includes(q) ||
+          g.title?.toLowerCase().includes(q),
       );
     }
     list = [...list].sort((a, b) => {
-      if (sortBy === "name") return a.prompt.localeCompare(b.prompt);
+      if (sortBy === "name") {
+        const nameA = a.title || a.prompt;
+        const nameB = b.title || b.prompt;
+        return nameA.localeCompare(nameB);
+      }
       return (
         new Date(b.created_at).getTime() -
         new Date(a.created_at).getTime()
@@ -123,7 +129,7 @@ export default function HistoryPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by prompt, genre, mood..."
+              placeholder="Search by title, prompt, genre, mood..."
               className="w-full pl-9 pr-3 py-2 rounded-lg border
                          border-border bg-white text-sm
                          focus:outline-none focus:ring-2
@@ -217,6 +223,8 @@ function HistoryCard({
   onDelete: () => void;
 }) {
   const gradient = getGradient(gen.genre);
+  const hasCover = !!gen.cover_art_path;
+  const displayTitle = gen.title || gen.prompt.slice(0, 60);
 
   return (
     <motion.div
@@ -228,12 +236,20 @@ function HistoryCard({
                  overflow-hidden hover:shadow-md transition-shadow
                  group"
     >
-      {/* Gradient header */}
+      {/* Gradient header / Cover art */}
       <div
-        className={`h-20 bg-gradient-to-br ${gradient}
-                    flex items-center justify-center relative`}
+        className={`h-20 ${hasCover ? "" : `bg-gradient-to-br ${gradient}`}
+                    flex items-center justify-center relative overflow-hidden`}
       >
-        <Music className="w-7 h-7 text-white/30" />
+        {hasCover ? (
+          <img
+            src={api.getCoverArtUrl(gen.cover_art_path!)}
+            alt="Cover"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <Music className="w-7 h-7 text-white/30" />
+        )}
         {/* Play overlay */}
         <button
           onClick={onPlay}
@@ -270,7 +286,7 @@ function HistoryCard({
       <div className="p-4">
         <p className="text-sm font-medium text-text-primary
                       truncate mb-2">
-          {gen.prompt.slice(0, 60)}
+          {displayTitle}
         </p>
         <div className="flex items-center gap-2 flex-wrap mb-3">
           {gen.genre && (

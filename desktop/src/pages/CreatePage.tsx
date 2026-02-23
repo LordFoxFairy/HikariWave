@@ -1,16 +1,13 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
   Music,
   Wand2,
   Loader2,
-  ChevronRight,
-  ChevronLeft,
   X,
   Zap,
   SlidersHorizontal,
-  Eye,
   RotateCcw,
   Volume2,
   VolumeX,
@@ -19,6 +16,9 @@ import {
   Gauge,
   KeyRound,
   Guitar,
+  Type,
+  AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 import { useCreateStore } from "../stores/createStore";
 import {
@@ -29,9 +29,8 @@ import {
   LANGUAGE_OPTIONS,
 } from "../stores/createStore";
 import { api } from "../services/api";
-import type { CreateStep } from "../types";
 
-/* ── Genre color map ── */
+/* -- Genre color map -- */
 const genreColors: Record<string, string> = {
   Pop: "bg-pink-50 text-pink-700 ring-pink-200",
   Rock: "bg-red-50 text-red-700 ring-red-200",
@@ -70,15 +69,6 @@ const moodGradients: Record<string, string> = {
   Uplifting: "from-lime-100 to-green-50 text-green-700 ring-green-200",
 };
 
-const stepOrder: CreateStep[] = ["input", "config", "preview", "generating", "result"];
-const stepLabels: Record<string, string> = {
-  input: "Description",
-  config: "Configure",
-  preview: "Preview",
-  generating: "Generating",
-  result: "Result",
-};
-
 function tempoLabel(bpm: number): string {
   if (bpm < 80) return "Slow";
   if (bpm < 110) return "Medium";
@@ -92,21 +82,76 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-/* ── Transition variants ── */
-const pageVariants = {
-  initial: { opacity: 0, x: 40 },
-  animate: { opacity: 1, x: 0 },
-  exit: { opacity: 0, x: -40 },
+/* -- Section animation -- */
+const sectionVariants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: { opacity: 1, y: 0 },
 };
 
-/* ═══════════════════════════════════════
-   Main Component
-   ═══════════════════════════════════════ */
 export default function CreatePage() {
   const store = useCreateStore();
   const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [smartFilling, setSmartFilling] = useState(false);
+  const resultRef = useRef<HTMLDivElement>(null);
 
-  /* ── AI helpers ── */
+  const isGenerating = store.generationStatus === "pending" || store.generationStatus === "processing";
+  const isCompleted = store.generationStatus === "completed";
+  const isFailed = store.generationStatus === "failed";
+
+  // Auto-dismiss messages
+  useEffect(() => {
+    if (store.errorMessage) {
+      const t = setTimeout(() => store.setErrorMessage(null), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [store.errorMessage, store]);
+
+  useEffect(() => {
+    if (store.successMessage) {
+      const t = setTimeout(() => store.setSuccessMessage(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [store.successMessage, store]);
+
+  /* -- AI: Suggest style via dedicated endpoint -- */
+  const handleSuggestStyle = useCallback(async (field?: string) => {
+    const fieldKey = field || "all";
+    store.setAiSuggesting(fieldKey, true);
+    try {
+      const suggestion = await api.suggestStyle({
+        prompt: store.prompt.trim() || "suggest style",
+        genre: store.selectedGenres[0],
+        mood: store.selectedMoods[0],
+      });
+      if (field === "genre" && suggestion.genres?.length) {
+        store.applyAiSuggestions({ genres: suggestion.genres });
+      } else if (field === "mood" && suggestion.moods?.length) {
+        store.applyAiSuggestions({ moods: suggestion.moods });
+      } else if (field === "tempo" && suggestion.tempo) {
+        store.applyAiSuggestions({ tempo: suggestion.tempo });
+      } else if (field === "key" && suggestion.musical_key) {
+        store.applyAiSuggestions({ musicalKey: suggestion.musical_key });
+      } else if (field === "instruments" && suggestion.instruments?.length) {
+        store.applyAiSuggestions({ instruments: suggestion.instruments });
+      } else {
+        // Apply all suggestions
+        store.applyAiSuggestions({
+          genres: suggestion.genres?.length ? suggestion.genres : undefined,
+          moods: suggestion.moods?.length ? suggestion.moods : undefined,
+          tempo: suggestion.tempo || undefined,
+          musicalKey: suggestion.musical_key || undefined,
+          instruments: suggestion.instruments?.length ? suggestion.instruments : undefined,
+          title: suggestion.title_suggestion || undefined,
+        });
+      }
+    } catch {
+      store.setErrorMessage("AI style suggestion failed. Check backend connection.");
+    } finally {
+      store.setAiSuggesting(fieldKey, false);
+    }
+  }, [store]);
+
+  /* -- AI: Generate lyrics -- */
   const handleGenerateLyrics = useCallback(async () => {
     if (!store.prompt.trim()) return;
     setLyricsLoading(true);
@@ -115,94 +160,142 @@ export default function CreatePage() {
         prompt: store.prompt.trim(),
         genre: store.selectedGenres[0],
         mood: store.selectedMoods[0],
+        language: store.language,
       });
       store.setLyrics(res.lyrics);
       if (res.suggestions) {
         store.applyAiSuggestions({
-          genres: res.suggestions.genre ? [res.suggestions.genre] : undefined,
-          tempo: res.suggestions.tempo ? parseInt(res.suggestions.tempo) || undefined : undefined,
-          musicalKey: res.suggestions.key || undefined,
-          instruments: res.suggestions.instruments,
+          genres: res.suggestions.genres?.length ? res.suggestions.genres : undefined,
+          moods: res.suggestions.moods?.length ? res.suggestions.moods : undefined,
+          tempo: res.suggestions.tempo || undefined,
+          musicalKey: res.suggestions.musical_key || undefined,
+          instruments: res.suggestions.instruments?.length ? res.suggestions.instruments : undefined,
+          title: res.suggestions.title_suggestion || undefined,
         });
       }
-    } catch { /* TODO: toast */ }
-    finally { setLyricsLoading(false); }
+      store.setSuccessMessage("Lyrics generated successfully");
+    } catch {
+      store.setErrorMessage("Failed to generate lyrics. Check backend connection.");
+    } finally {
+      setLyricsLoading(false);
+    }
   }, [store]);
 
-  const handleAiSuggestField = useCallback(async (field: string) => {
-    store.setAiSuggesting(field, true);
+  /* -- AI: Generate title -- */
+  const handleGenerateTitle = useCallback(async () => {
+    store.setAiSuggesting("title", true);
     try {
-      const res = await api.generateLyrics({
-        prompt: store.prompt.trim() || "suggest style",
+      const res = await api.generateTitle({
+        lyrics: store.lyrics || store.prompt,
         genre: store.selectedGenres[0],
         mood: store.selectedMoods[0],
       });
-      if (res.suggestions) {
-        if (field === "genre" && res.suggestions.genre) {
-          store.applyAiSuggestions({ genres: [res.suggestions.genre] });
-        } else if (field === "mood") {
-          // use genre-based suggestion
-        } else if (field === "tempo" && res.suggestions.tempo) {
-          store.applyAiSuggestions({ tempo: parseInt(res.suggestions.tempo) || undefined });
-        } else if (field === "key" && res.suggestions.key) {
-          store.applyAiSuggestions({ musicalKey: res.suggestions.key });
-        } else if (field === "instruments" && res.suggestions.instruments) {
-          store.applyAiSuggestions({ instruments: res.suggestions.instruments });
-        }
-      }
-    } catch { /* TODO: toast */ }
-    finally { store.setAiSuggesting(field, false); }
+      store.setTitle(res.title);
+    } catch {
+      store.setErrorMessage("Failed to generate title.");
+    } finally {
+      store.setAiSuggesting("title", false);
+    }
   }, [store]);
 
-  const handleSmartCreate = useCallback(async () => {
+  /* -- Smart Mode: Fill all fields at once -- */
+  const handleSmartFill = useCallback(async () => {
     if (!store.prompt.trim()) return;
-    setLyricsLoading(true);
+    setSmartFilling(true);
     try {
-      const res = await api.generateLyrics({
+      // 1. Suggest style
+      const stylePromise = api.suggestStyle({
         prompt: store.prompt.trim(),
-        genre: undefined,
-        mood: undefined,
-      });
-      store.setLyrics(res.lyrics);
-      if (res.suggestions) {
+      }).catch(() => null);
+
+      // 2. Generate lyrics
+      const lyricsPromise = api.generateLyrics({
+        prompt: store.prompt.trim(),
+        language: store.language,
+      }).catch(() => null);
+
+      const [style, lyricsRes] = await Promise.all([stylePromise, lyricsPromise]);
+
+      if (style) {
         store.applyAiSuggestions({
-          genres: res.suggestions.genre ? [res.suggestions.genre] : undefined,
-          tempo: res.suggestions.tempo ? parseInt(res.suggestions.tempo) || undefined : undefined,
-          musicalKey: res.suggestions.key || undefined,
-          instruments: res.suggestions.instruments,
+          genres: style.genres?.length ? style.genres : undefined,
+          moods: style.moods?.length ? style.moods : undefined,
+          tempo: style.tempo || undefined,
+          musicalKey: style.musical_key || undefined,
+          instruments: style.instruments?.length ? style.instruments : undefined,
+          title: style.title_suggestion || undefined,
         });
       }
-      store.setStep("preview");
-    } catch { /* TODO: toast */ }
-    finally { setLyricsLoading(false); }
+
+      if (lyricsRes) {
+        store.setLyrics(lyricsRes.lyrics);
+        // Also apply any suggestions from lyrics response
+        if (lyricsRes.suggestions) {
+          store.applyAiSuggestions({
+            genres: !style && lyricsRes.suggestions.genres?.length ? lyricsRes.suggestions.genres : undefined,
+            moods: !style && lyricsRes.suggestions.moods?.length ? lyricsRes.suggestions.moods : undefined,
+            tempo: !style && lyricsRes.suggestions.tempo ? lyricsRes.suggestions.tempo : undefined,
+            musicalKey: !style && lyricsRes.suggestions.musical_key ? lyricsRes.suggestions.musical_key : undefined,
+            instruments: !style && lyricsRes.suggestions.instruments?.length ? lyricsRes.suggestions.instruments : undefined,
+          });
+        }
+      }
+
+      // 3. Generate title if we have lyrics and no title yet
+      if (lyricsRes?.lyrics && !style?.title_suggestion) {
+        try {
+          const titleRes = await api.generateTitle({
+            lyrics: lyricsRes.lyrics,
+            genre: style?.genres?.[0],
+            mood: style?.moods?.[0],
+          });
+          store.setTitle(titleRes.title);
+        } catch {
+          // Title generation is optional, non-blocking
+        }
+      }
+
+      store.setSuccessMessage("AI filled all fields! Review and generate.");
+    } catch {
+      store.setErrorMessage("Smart fill failed. Check backend connection.");
+    } finally {
+      setSmartFilling(false);
+    }
   }, [store]);
 
+  /* -- Task polling -- */
   const pollTask = useCallback((taskId: string) => {
     const interval = setInterval(async () => {
       try {
-        const status = await api.getTaskStatus(taskId);
-        store.setProgress(status.progress ?? 0);
-        if (status.status === "completed") {
+        const gen = await api.getTaskStatus(taskId);
+        store.setProgress(gen.progress ?? 0);
+        if (gen.status === "completed") {
           store.setGenerationStatus("completed");
-          store.setStep("result");
+          store.setSuccessMessage("Music generated successfully!");
           clearInterval(interval);
-        } else if (status.status === "failed") {
+          setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
+        } else if (gen.status === "failed") {
           store.setGenerationStatus("failed");
-          store.setStep("result");
+          store.setErrorMessage(gen.error_message || "Generation failed.");
           clearInterval(interval);
         }
       } catch {
         clearInterval(interval);
         store.setGenerationStatus("failed");
-        store.setStep("result");
+        store.setErrorMessage("Lost connection during generation.");
       }
     }, 2000);
   }, [store]);
 
+  /* -- Generate music -- */
   const handleGenerate = useCallback(async () => {
+    if (!store.prompt.trim()) {
+      store.setErrorMessage("Please enter a description first.");
+      return;
+    }
     store.setGenerationStatus("pending");
     store.setProgress(0);
-    store.setStep("generating");
+    store.setErrorMessage(null);
     try {
       const res = await api.generateMusic({
         prompt: store.prompt.trim(),
@@ -210,13 +303,19 @@ export default function CreatePage() {
         genre: store.selectedGenres.join(", ") || undefined,
         mood: store.selectedMoods.join(", ") || undefined,
         duration: store.duration,
+        title: store.title || undefined,
+        tempo: store.tempo,
+        musical_key: store.musicalKey,
+        instruments: store.instruments.length > 0 ? store.instruments : undefined,
+        language: store.language,
+        instrumental: store.instrumental,
       });
       store.setCurrentTaskId(res.task_id);
       store.setGenerationStatus("processing");
       pollTask(res.task_id);
-    } catch {
+    } catch (err) {
       store.setGenerationStatus("failed");
-      store.setStep("result");
+      store.setErrorMessage(err instanceof Error ? err.message : "Failed to start generation.");
     }
   }, [store, pollTask]);
 
@@ -224,20 +323,11 @@ export default function CreatePage() {
     store.reset();
   }, [store]);
 
-  const canProceedToConfig =
-    store.mode === "custom"
-      ? store.prompt.trim().length > 0 || store.lyrics.trim().length > 0
-      : false;
-
-  const canProceedToPreview =
-    store.selectedGenres.length > 0 || store.selectedMoods.length > 0;
-
-  /* ═══════════ RENDER ═══════════ */
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
 
-        {/* ── Header ── */}
+        {/* -- Header -- */}
         <div className="text-center">
           <h1 className="text-2xl font-bold text-text-primary flex items-center justify-center gap-2">
             <Music className="w-6 h-6 text-primary-500" />
@@ -248,7 +338,39 @@ export default function CreatePage() {
           </p>
         </div>
 
-        {/* ── Mode Toggle ── */}
+        {/* -- Toast messages -- */}
+        <AnimatePresence>
+          {store.errorMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700"
+            >
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1">{store.errorMessage}</span>
+              <button onClick={() => store.setErrorMessage(null)} className="cursor-pointer p-0.5">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </motion.div>
+          )}
+          {store.successMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="flex items-center gap-2 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-sm text-green-700"
+            >
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1">{store.successMessage}</span>
+              <button onClick={() => store.setSuccessMessage(null)} className="cursor-pointer p-0.5">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* -- Mode Toggle -- */}
         <div className="flex justify-center">
           <div className="inline-flex bg-white rounded-full p-1 border border-border shadow-sm">
             <button
@@ -276,495 +398,395 @@ export default function CreatePage() {
           </div>
         </div>
 
-        {/* ── Step Progress ── */}
-        <div className="flex items-center justify-center gap-1">
-          {stepOrder.map((s, idx) => {
-            const currentIdx = stepOrder.indexOf(store.step);
-            const isActive = idx === currentIdx;
-            const isDone = idx < currentIdx;
-            return (
-              <div key={s} className="flex items-center gap-1">
-                <div
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all
-                    ${isActive ? "bg-primary-100 text-primary-700" : ""}
-                    ${isDone ? "bg-primary-50 text-primary-500" : ""}
-                    ${!isActive && !isDone ? "text-text-tertiary" : ""}
-                  `}
-                >
-                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold
-                    ${isActive ? "bg-primary-600 text-white" : ""}
-                    ${isDone ? "bg-primary-400 text-white" : ""}
-                    ${!isActive && !isDone ? "bg-surface-tertiary text-text-tertiary" : ""}
-                  `}>
-                    {isDone ? "✓" : idx + 1}
-                  </span>
-                  {stepLabels[s]}
-                </div>
-                {idx < stepOrder.length - 1 && (
-                  <div className={`w-6 h-px ${idx < currentIdx ? "bg-primary-300" : "bg-border"}`} />
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {/* ================================================================
+            SECTION: Prompt
+           ================================================================ */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.05 }}
+          className="bg-white rounded-xl border border-border shadow-sm p-5"
+        >
+          <label className="text-sm font-medium text-text-primary block mb-2">
+            Describe your music
+          </label>
+          <textarea
+            value={store.prompt}
+            onChange={(e) => store.setPrompt(e.target.value)}
+            placeholder="A dreamy lo-fi beat with soft piano and rain sounds..."
+            rows={3}
+            className="w-full px-3.5 py-2.5 rounded-lg border border-border
+                       bg-surface-secondary text-sm text-text-primary
+                       placeholder:text-text-tertiary focus:outline-none
+                       focus:ring-2 focus:ring-primary-300
+                       focus:border-primary-400 resize-none transition-all"
+          />
 
-        {/* ── Step Content ── */}
-        <AnimatePresence mode="wait">
-          {/* ════════ INPUT STEP ════════ */}
-          {store.step === "input" && (
-            <motion.div
-              key="input"
-              variants={pageVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.25 }}
-              className="space-y-5"
-            >
-              {/* Prompt */}
-              <div className="bg-white rounded-xl border border-border shadow-sm p-5">
-                <label className="text-sm font-medium text-text-primary block mb-2">
-                  Describe your music
-                </label>
-                <textarea
-                  value={store.prompt}
-                  onChange={(e) => store.setPrompt(e.target.value)}
-                  placeholder="A dreamy lo-fi beat with soft piano and rain sounds..."
-                  rows={3}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-border
-                             bg-surface-secondary text-sm text-text-primary
-                             placeholder:text-text-tertiary focus:outline-none
-                             focus:ring-2 focus:ring-primary-300
-                             focus:border-primary-400 resize-none transition-all"
-                />
-              </div>
-
-              {/* Lyrics (shown in both modes at input step) */}
-              {store.mode === "custom" && (
-                <div className="bg-white rounded-xl border border-border shadow-sm p-5">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium text-text-primary">
-                      Lyrics
-                    </label>
-                    <button
-                      onClick={handleGenerateLyrics}
-                      disabled={!store.prompt.trim() || lyricsLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs
-                                 font-medium bg-primary-50 text-primary-700
-                                 hover:bg-primary-100 transition-colors
-                                 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-                    >
-                      {lyricsLoading ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Wand2 className="w-3.5 h-3.5" />
-                      )}
-                      AI Write Lyrics
-                    </button>
-                  </div>
-                  <textarea
-                    value={store.lyrics}
-                    onChange={(e) => store.setLyrics(e.target.value)}
-                    placeholder={"[Verse 1]\nYour lyrics here...\n\n[Chorus]\n..."}
-                    rows={8}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-border
-                               bg-surface-secondary text-sm text-text-primary font-mono
-                               placeholder:text-text-tertiary focus:outline-none
-                               focus:ring-2 focus:ring-primary-300
-                               focus:border-primary-400 resize-none transition-all"
-                  />
-                </div>
-              )}
-
-              {/* Action buttons */}
-              <div className="flex justify-end gap-3">
-                {store.mode === "smart" ? (
-                  <button
-                    onClick={handleSmartCreate}
-                    disabled={!store.prompt.trim() || lyricsLoading}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold
-                               text-white bg-gradient-to-r from-primary-600 to-primary-500
-                               hover:from-primary-700 hover:to-primary-600
-                               shadow-lg shadow-primary-200
-                               disabled:opacity-50 disabled:cursor-not-allowed
-                               transition-all cursor-pointer"
-                  >
-                    {lyricsLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-4 h-4" />
-                    )}
-                    {lyricsLoading ? "AI is creating..." : "Create with AI"}
-                  </button>
+          {/* Smart Mode: "Generate All" button */}
+          {store.mode === "smart" && (
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={handleSmartFill}
+                disabled={!store.prompt.trim() || smartFilling}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
+                           text-white bg-gradient-to-r from-primary-600 to-primary-500
+                           hover:from-primary-700 hover:to-primary-600
+                           shadow-lg shadow-primary-200
+                           disabled:opacity-50 disabled:cursor-not-allowed
+                           transition-all cursor-pointer"
+              >
+                {smartFilling ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <button
-                    onClick={() => store.setStep("config")}
-                    disabled={!canProceedToConfig}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold
-                               text-white bg-gradient-to-r from-primary-600 to-primary-500
-                               hover:from-primary-700 hover:to-primary-600
-                               shadow-lg shadow-primary-200
-                               disabled:opacity-50 disabled:cursor-not-allowed
-                               transition-all cursor-pointer"
-                  >
-                    Next: Configure
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )}
-
-          {/* ════════ CONFIG STEP ════════ */}
-          {store.step === "config" && (
-            <motion.div
-              key="config"
-              variants={pageVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.25 }}
-              className="space-y-5"
-            >
-              {/* Genre */}
-              <div className="bg-white rounded-xl border border-border shadow-sm p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
-                    <Music className="w-4 h-4 text-primary-500" />
-                    Genre
-                  </label>
-                  <AiSuggestBtn field="genre" loading={!!store.aiSuggesting["genre"]} onClick={handleAiSuggestField} />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {GENRE_OPTIONS.map((genre) => {
-                    const sel = store.selectedGenres.includes(genre);
-                    const colors = genreColors[genre] || "bg-gray-50 text-gray-700 ring-gray-200";
-                    return (
-                      <button
-                        key={genre}
-                        onClick={() => store.toggleGenre(genre)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer
-                          ${sel ? `${colors} ring-1` : "bg-surface-tertiary text-text-secondary hover:bg-surface-secondary"}`}
-                      >
-                        {genre}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Mood */}
-              <div className="bg-white rounded-xl border border-border shadow-sm p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-accent-500" />
-                    Mood
-                  </label>
-                  <AiSuggestBtn field="mood" loading={!!store.aiSuggesting["mood"]} onClick={handleAiSuggestField} />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {MOOD_OPTIONS.map((mood) => {
-                    const sel = store.selectedMoods.includes(mood);
-                    const grad = moodGradients[mood] || "from-gray-100 to-gray-50 text-gray-700 ring-gray-200";
-                    return (
-                      <button
-                        key={mood}
-                        onClick={() => store.toggleMood(mood)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer
-                          ${sel ? `bg-gradient-to-r ${grad} ring-1` : "bg-surface-tertiary text-text-secondary hover:bg-surface-secondary"}`}
-                      >
-                        {mood}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Duration & Tempo */}
-              <div className="bg-white rounded-xl border border-border shadow-sm p-5 space-y-5">
-                {/* Duration */}
-                <div>
-                  <label className="text-sm font-medium text-text-primary flex items-center gap-1.5 mb-2">
-                    <Clock className="w-4 h-4 text-primary-500" />
-                    Duration: {formatDuration(store.duration)}
-                  </label>
-                  <input
-                    type="range"
-                    min={30}
-                    max={300}
-                    step={10}
-                    value={store.duration}
-                    onChange={(e) => store.setDuration(Number(e.target.value))}
-                    className="w-full accent-primary-600 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[10px] text-text-tertiary mt-1">
-                    <span>0:30</span><span>5:00</span>
-                  </div>
-                </div>
-
-                {/* Tempo */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
-                      <Gauge className="w-4 h-4 text-primary-500" />
-                      Tempo: {store.tempo} BPM
-                      <span className="text-[10px] text-text-tertiary ml-1">({tempoLabel(store.tempo)})</span>
-                    </label>
-                    <AiSuggestBtn field="tempo" loading={!!store.aiSuggesting["tempo"]} onClick={handleAiSuggestField} />
-                  </div>
-                  <input
-                    type="range"
-                    min={60}
-                    max={180}
-                    step={1}
-                    value={store.tempo}
-                    onChange={(e) => store.setTempo(Number(e.target.value))}
-                    className="w-full accent-primary-600 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[10px] text-text-tertiary mt-1">
-                    <span>60</span><span>120</span><span>180</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Key & Language & Instrumental */}
-              <div className="bg-white rounded-xl border border-border shadow-sm p-5 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Key */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
-                        <KeyRound className="w-4 h-4 text-primary-500" />
-                        Key
-                      </label>
-                      <AiSuggestBtn field="key" loading={!!store.aiSuggesting["key"]} onClick={handleAiSuggestField} />
-                    </div>
-                    <select
-                      value={store.musicalKey}
-                      onChange={(e) => store.setMusicalKey(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-border bg-surface-secondary
-                                 text-sm text-text-primary focus:outline-none focus:ring-2
-                                 focus:ring-primary-300 cursor-pointer"
-                    >
-                      {KEY_OPTIONS.map((k) => (
-                        <option key={k} value={k}>{k}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Language */}
-                  <div>
-                    <label className="text-sm font-medium text-text-primary flex items-center gap-1.5 mb-2">
-                      <Globe className="w-4 h-4 text-primary-500" />
-                      Language
-                    </label>
-                    <select
-                      value={store.language}
-                      onChange={(e) => store.setLanguage(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-border bg-surface-secondary
-                                 text-sm text-text-primary focus:outline-none focus:ring-2
-                                 focus:ring-primary-300 cursor-pointer"
-                    >
-                      {LANGUAGE_OPTIONS.map((l) => (
-                        <option key={l} value={l}>{l}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Instrumental Toggle */}
-                <div className="flex items-center justify-between py-2">
-                  <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
-                    {store.instrumental ? (
-                      <VolumeX className="w-4 h-4 text-primary-500" />
-                    ) : (
-                      <Volume2 className="w-4 h-4 text-primary-500" />
-                    )}
-                    Instrumental Only (no vocals)
-                  </label>
-                  <button
-                    onClick={() => store.setInstrumental(!store.instrumental)}
-                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer
-                      ${store.instrumental ? "bg-primary-600" : "bg-surface-tertiary"}`}
-                  >
-                    <div
-                      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform
-                        ${store.instrumental ? "translate-x-5.5" : "translate-x-0.5"}`}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {/* Instruments */}
-              <div className="bg-white rounded-xl border border-border shadow-sm p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
-                    <Guitar className="w-4 h-4 text-primary-500" />
-                    Instruments
-                  </label>
-                  <AiSuggestBtn field="instruments" loading={!!store.aiSuggesting["instruments"]} onClick={handleAiSuggestField} />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {INSTRUMENT_OPTIONS.map((inst) => {
-                    const sel = store.instruments.includes(inst);
-                    return (
-                      <button
-                        key={inst}
-                        onClick={() => store.toggleInstrument(inst)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer
-                          ${sel
-                            ? "bg-primary-100 text-primary-700 ring-1 ring-primary-300"
-                            : "bg-surface-tertiary text-text-secondary hover:bg-surface-secondary"}`}
-                      >
-                        {inst}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Nav buttons */}
-              <div className="flex justify-between gap-3">
-                <button
-                  onClick={() => store.setStep("input")}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium
-                             text-text-secondary bg-white border border-border
-                             hover:bg-surface-secondary transition-all cursor-pointer"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Back
-                </button>
-                <button
-                  onClick={() => store.setStep("preview")}
-                  disabled={!canProceedToPreview}
-                  className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold
-                             text-white bg-gradient-to-r from-primary-600 to-primary-500
-                             hover:from-primary-700 hover:to-primary-600
-                             shadow-lg shadow-primary-200
-                             disabled:opacity-50 disabled:cursor-not-allowed
-                             transition-all cursor-pointer"
-                >
-                  <Eye className="w-4 h-4" />
-                  Preview
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ════════ PREVIEW STEP ════════ */}
-          {store.step === "preview" && (
-            <motion.div
-              key="preview"
-              variants={pageVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.25 }}
-              className="space-y-5"
-            >
-              <div className="bg-white rounded-2xl border border-border shadow-md p-6
-                              bg-gradient-to-br from-white via-primary-50/30 to-accent-50/20">
-                <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-primary-500" />
-                  Preview Summary
-                </h3>
-
-                {store.prompt && (
-                  <div className="mb-4">
-                    <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">Description</span>
-                    <p className="text-sm text-text-primary mt-1">{store.prompt}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {store.selectedGenres.length > 0 && (
-                    <div>
-                      <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">Genre</span>
-                      <p className="text-sm text-text-primary mt-0.5">{store.selectedGenres.join(", ")}</p>
-                    </div>
-                  )}
-                  {store.selectedMoods.length > 0 && (
-                    <div>
-                      <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">Mood</span>
-                      <p className="text-sm text-text-primary mt-0.5">{store.selectedMoods.join(", ")}</p>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">Duration</span>
-                    <p className="text-sm text-text-primary mt-0.5">{formatDuration(store.duration)}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">Tempo</span>
-                    <p className="text-sm text-text-primary mt-0.5">{store.tempo} BPM ({tempoLabel(store.tempo)})</p>
-                  </div>
-                  <div>
-                    <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">Key</span>
-                    <p className="text-sm text-text-primary mt-0.5">{store.musicalKey}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">Language</span>
-                    <p className="text-sm text-text-primary mt-0.5">{store.language}</p>
-                  </div>
-                  {store.instruments.length > 0 && (
-                    <div className="col-span-2">
-                      <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">Instruments</span>
-                      <p className="text-sm text-text-primary mt-0.5">{store.instruments.join(", ")}</p>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">Vocals</span>
-                    <p className="text-sm text-text-primary mt-0.5">{store.instrumental ? "Instrumental Only" : "With Vocals"}</p>
-                  </div>
-                </div>
-
-                {/* Lyrics preview */}
-                {store.lyrics && (
-                  <div>
-                    <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">Lyrics</span>
-                    <pre className="text-sm text-text-primary mt-1 font-mono whitespace-pre-wrap
-                                    bg-surface-secondary rounded-lg p-3 max-h-48 overflow-y-auto">
-                      {store.lyrics}
-                    </pre>
-                  </div>
-                )}
-              </div>
-
-              {/* Nav buttons */}
-              <div className="flex justify-between gap-3">
-                <button
-                  onClick={() => store.setStep(store.mode === "smart" ? "input" : "config")}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium
-                             text-text-secondary bg-white border border-border
-                             hover:bg-surface-secondary transition-all cursor-pointer"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Back
-                </button>
-                <button
-                  onClick={handleGenerate}
-                  className="flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold
-                             text-white bg-gradient-to-r from-primary-600 to-accent-500
-                             hover:from-primary-700 hover:to-accent-600
-                             shadow-lg shadow-primary-200
-                             transition-all cursor-pointer"
-                >
                   <Sparkles className="w-4 h-4" />
-                  Generate Music
-                </button>
-              </div>
-            </motion.div>
+                )}
+                {smartFilling ? "AI is filling..." : "Auto-Fill with AI"}
+              </button>
+            </div>
           )}
+        </motion.div>
 
-          {/* ════════ GENERATING STEP ════════ */}
-          {store.step === "generating" && (
+        {/* ================================================================
+            SECTION: Title
+           ================================================================ */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.08 }}
+          className="bg-white rounded-xl border border-border shadow-sm p-5"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+              <Type className="w-4 h-4 text-primary-500" />
+              Song Title
+            </label>
+            <AiSuggestBtn
+              field="title"
+              loading={!!store.aiSuggesting["title"]}
+              onClick={() => handleGenerateTitle()}
+            />
+          </div>
+          <input
+            type="text"
+            value={store.title}
+            onChange={(e) => store.setTitle(e.target.value)}
+            placeholder="Enter a title or let AI suggest one..."
+            className="w-full px-3.5 py-2.5 rounded-lg border border-border
+                       bg-surface-secondary text-sm text-text-primary
+                       placeholder:text-text-tertiary focus:outline-none
+                       focus:ring-2 focus:ring-primary-300
+                       focus:border-primary-400 transition-all"
+          />
+        </motion.div>
+
+        {/* ================================================================
+            SECTION: Lyrics
+           ================================================================ */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.11 }}
+          className="bg-white rounded-xl border border-border shadow-sm p-5"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+              <Music className="w-4 h-4 text-primary-500" />
+              Lyrics
+            </label>
+            <div className="flex items-center gap-2">
+              {/* Instrumental toggle inline */}
+              <button
+                onClick={() => store.setInstrumental(!store.instrumental)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium
+                           transition-colors cursor-pointer
+                           ${store.instrumental
+                             ? "bg-primary-100 text-primary-700"
+                             : "bg-surface-tertiary text-text-secondary hover:bg-surface-secondary"}`}
+              >
+                {store.instrumental ? (
+                  <VolumeX className="w-3 h-3" />
+                ) : (
+                  <Volume2 className="w-3 h-3" />
+                )}
+                {store.instrumental ? "Instrumental" : "With Vocals"}
+              </button>
+              <AiSuggestBtn
+                field="lyrics"
+                loading={lyricsLoading}
+                onClick={() => handleGenerateLyrics()}
+              />
+            </div>
+          </div>
+
+          {store.instrumental ? (
+            <div className="flex items-center justify-center py-6 text-sm text-text-tertiary bg-surface-secondary rounded-lg">
+              <VolumeX className="w-4 h-4 mr-2" />
+              Instrumental mode -- no lyrics needed
+            </div>
+          ) : (
+            <>
+              <textarea
+                value={store.lyrics}
+                onChange={(e) => store.setLyrics(e.target.value)}
+                placeholder={"[Verse 1]\nYour lyrics here...\n\n[Chorus]\n..."}
+                rows={8}
+                className="w-full px-3.5 py-2.5 rounded-lg border border-border
+                           bg-surface-secondary text-sm text-text-primary font-mono
+                           placeholder:text-text-tertiary focus:outline-none
+                           focus:ring-2 focus:ring-primary-300
+                           focus:border-primary-400 resize-none transition-all"
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <Globe className="w-3.5 h-3.5 text-text-tertiary" />
+                <select
+                  value={store.language}
+                  onChange={(e) => store.setLanguage(e.target.value)}
+                  className="px-2 py-1 rounded-lg border border-border bg-surface-secondary
+                             text-xs text-text-primary focus:outline-none focus:ring-2
+                             focus:ring-primary-300 cursor-pointer"
+                >
+                  {LANGUAGE_OPTIONS.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+        </motion.div>
+
+        {/* ================================================================
+            SECTION: Genre
+           ================================================================ */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.14 }}
+          className="bg-white rounded-xl border border-border shadow-sm p-5"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+              <Music className="w-4 h-4 text-primary-500" />
+              Genre
+            </label>
+            <AiSuggestBtn field="genre" loading={!!store.aiSuggesting["genre"]} onClick={() => handleSuggestStyle("genre")} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {GENRE_OPTIONS.map((genre) => {
+              const sel = store.selectedGenres.includes(genre);
+              const colors = genreColors[genre] || "bg-gray-50 text-gray-700 ring-gray-200";
+              return (
+                <button
+                  key={genre}
+                  onClick={() => store.toggleGenre(genre)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer
+                    ${sel ? `${colors} ring-1` : "bg-surface-tertiary text-text-secondary hover:bg-surface-secondary"}`}
+                >
+                  {genre}
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        {/* ================================================================
+            SECTION: Mood
+           ================================================================ */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.17 }}
+          className="bg-white rounded-xl border border-border shadow-sm p-5"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-accent-500" />
+              Mood
+            </label>
+            <AiSuggestBtn field="mood" loading={!!store.aiSuggesting["mood"]} onClick={() => handleSuggestStyle("mood")} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {MOOD_OPTIONS.map((mood) => {
+              const sel = store.selectedMoods.includes(mood);
+              const grad = moodGradients[mood] || "from-gray-100 to-gray-50 text-gray-700 ring-gray-200";
+              return (
+                <button
+                  key={mood}
+                  onClick={() => store.toggleMood(mood)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer
+                    ${sel ? `bg-gradient-to-r ${grad} ring-1` : "bg-surface-tertiary text-text-secondary hover:bg-surface-secondary"}`}
+                >
+                  {mood}
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        {/* ================================================================
+            SECTION: Duration & Tempo
+           ================================================================ */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-xl border border-border shadow-sm p-5 space-y-5"
+        >
+          {/* Duration */}
+          <div>
+            <label className="text-sm font-medium text-text-primary flex items-center gap-1.5 mb-2">
+              <Clock className="w-4 h-4 text-primary-500" />
+              Duration: {formatDuration(store.duration)}
+            </label>
+            <input
+              type="range"
+              min={30}
+              max={300}
+              step={10}
+              value={store.duration}
+              onChange={(e) => store.setDuration(Number(e.target.value))}
+              className="w-full accent-primary-600 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-text-tertiary mt-1">
+              <span>0:30</span><span>5:00</span>
+            </div>
+          </div>
+
+          {/* Tempo */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+                <Gauge className="w-4 h-4 text-primary-500" />
+                Tempo: {store.tempo} BPM
+                <span className="text-[10px] text-text-tertiary ml-1">({tempoLabel(store.tempo)})</span>
+              </label>
+              <AiSuggestBtn field="tempo" loading={!!store.aiSuggesting["tempo"]} onClick={() => handleSuggestStyle("tempo")} />
+            </div>
+            <input
+              type="range"
+              min={60}
+              max={180}
+              step={1}
+              value={store.tempo}
+              onChange={(e) => store.setTempo(Number(e.target.value))}
+              className="w-full accent-primary-600 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-text-tertiary mt-1">
+              <span>60</span><span>120</span><span>180</span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ================================================================
+            SECTION: Key & Language
+           ================================================================ */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.23 }}
+          className="bg-white rounded-xl border border-border shadow-sm p-5"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+              <KeyRound className="w-4 h-4 text-primary-500" />
+              Musical Key
+            </label>
+            <AiSuggestBtn field="key" loading={!!store.aiSuggesting["key"]} onClick={() => handleSuggestStyle("key")} />
+          </div>
+          <select
+            value={store.musicalKey}
+            onChange={(e) => store.setMusicalKey(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-secondary
+                       text-sm text-text-primary focus:outline-none focus:ring-2
+                       focus:ring-primary-300 cursor-pointer"
+          >
+            {KEY_OPTIONS.map((k) => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
+        </motion.div>
+
+        {/* ================================================================
+            SECTION: Instruments
+           ================================================================ */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.26 }}
+          className="bg-white rounded-xl border border-border shadow-sm p-5"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+              <Guitar className="w-4 h-4 text-primary-500" />
+              Instruments
+            </label>
+            <AiSuggestBtn field="instruments" loading={!!store.aiSuggesting["instruments"]} onClick={() => handleSuggestStyle("instruments")} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {INSTRUMENT_OPTIONS.map((inst) => {
+              const sel = store.instruments.includes(inst);
+              return (
+                <button
+                  key={inst}
+                  onClick={() => store.toggleInstrument(inst)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer
+                    ${sel
+                      ? "bg-primary-100 text-primary-700 ring-1 ring-primary-300"
+                      : "bg-surface-tertiary text-text-secondary hover:bg-surface-secondary"}`}
+                >
+                  {inst}
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        {/* ================================================================
+            SECTION: Generate Button
+           ================================================================ */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.29 }}
+          className="pt-2"
+        >
+          <button
+            onClick={handleGenerate}
+            disabled={!store.prompt.trim() || isGenerating}
+            className="w-full flex items-center justify-center gap-2 px-8 py-4 rounded-xl text-base font-bold
+                       text-white bg-gradient-to-r from-primary-600 to-accent-500
+                       hover:from-primary-700 hover:to-accent-600
+                       shadow-lg shadow-primary-200
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       transition-all cursor-pointer"
+          >
+            {isGenerating ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Sparkles className="w-5 h-5" />
+            )}
+            {isGenerating ? "Generating..." : "Generate Music"}
+          </button>
+        </motion.div>
+
+        {/* ================================================================
+            SECTION: Generation Progress (shown when generating)
+           ================================================================ */}
+        <AnimatePresence>
+          {isGenerating && (
             <motion.div
-              key="generating"
-              variants={pageVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.25 }}
-              className="space-y-6"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
             >
               <div className="bg-white rounded-2xl border border-border shadow-md p-8 text-center">
                 {/* Animated waveform visualization */}
@@ -810,7 +832,6 @@ export default function CreatePage() {
                 <button
                   onClick={() => {
                     store.setGenerationStatus("idle");
-                    store.setStep("preview");
                   }}
                   className="mt-4 flex items-center gap-1.5 mx-auto px-4 py-2
                              rounded-lg text-xs font-medium text-text-secondary
@@ -823,19 +844,20 @@ export default function CreatePage() {
               </div>
             </motion.div>
           )}
+        </AnimatePresence>
 
-          {/* ════════ RESULT STEP ════════ */}
-          {store.step === "result" && (
+        {/* ================================================================
+            SECTION: Result (shown after generation completes)
+           ================================================================ */}
+        <AnimatePresence>
+          {(isCompleted || isFailed) && (
             <motion.div
-              key="result"
-              variants={pageVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.25 }}
-              className="space-y-5"
+              ref={resultRef}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
             >
-              {store.generationStatus === "completed" ? (
+              {isCompleted ? (
                 <div className="bg-white rounded-2xl border border-border shadow-md p-6 text-center">
                   <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Music className="w-7 h-7 text-green-600" />
@@ -844,7 +866,7 @@ export default function CreatePage() {
                     Music Generated!
                   </h3>
                   <p className="text-sm text-text-secondary mb-6">
-                    Your music has been created successfully.
+                    Your music has been created successfully. Check the History tab to listen.
                   </p>
 
                   {/* Lyrics display */}
@@ -858,7 +880,6 @@ export default function CreatePage() {
                     </div>
                   )}
 
-                  {/* Action buttons */}
                   <div className="flex justify-center gap-3">
                     <button
                       onClick={handleCreateAnother}
@@ -884,13 +905,12 @@ export default function CreatePage() {
                   </p>
                   <div className="flex justify-center gap-3">
                     <button
-                      onClick={() => store.setStep("preview")}
+                      onClick={() => store.setGenerationStatus("idle")}
                       className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium
                                  text-text-secondary bg-white border border-border
                                  hover:bg-surface-secondary transition-colors cursor-pointer"
                     >
-                      <ChevronLeft className="w-4 h-4" />
-                      Back to Preview
+                      Dismiss
                     </button>
                     <button
                       onClick={handleGenerate}
@@ -907,12 +927,15 @@ export default function CreatePage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Bottom spacer */}
+        <div className="h-4" />
       </div>
     </div>
   );
 }
 
-/* ── Small helper component: AI Suggest Button ── */
+/* -- Small helper component: AI Suggest Button -- */
 function AiSuggestBtn({
   field,
   loading,
