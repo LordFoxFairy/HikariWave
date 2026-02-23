@@ -1,3 +1,5 @@
+from pathlib import PurePosixPath
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
@@ -13,9 +15,14 @@ MIME_MAP = {
 }
 
 
-@router.get("/{file_id}")
+@router.get("/{file_id:path}")
 async def stream_audio(file_id: str):
-    path = storage_service.get_audio_path(file_id)
+    # Extract basename to prevent path traversal attacks.
+    # The frontend may send a full path or just a filename.
+    filename = PurePosixPath(file_id).name
+    if not filename:
+        raise HTTPException(status_code=400, detail="Invalid file_id")
+    path = storage_service.get_audio_path(filename)
     if path is None:
         raise HTTPException(status_code=404, detail="Audio file not found")
     suffix = path.suffix.lstrip(".")

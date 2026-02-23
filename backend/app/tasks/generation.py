@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from celery import Celery
 
@@ -66,7 +66,7 @@ async def _run_generation(task_id: str, params: dict) -> None:
         gen.audio_path = response.audio_path
         gen.audio_format = response.format
         gen.actual_duration = response.duration
-        gen.completed_at = datetime.utcnow()
+        gen.completed_at = datetime.now(UTC)
         await db.commit()
 
 

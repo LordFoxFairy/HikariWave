@@ -11,6 +11,8 @@ llm:
     default: openrouter:anthropic/claude-sonnet-4
     lyrics: openrouter:anthropic/claude-sonnet-4
     enhancement: openrouter:anthropic/claude-opus-4
+    suggestion: openrouter:anthropic/claude-sonnet-4
+    cover_art: openrouter:anthropic/claude-sonnet-4
 
 music:
   providers:

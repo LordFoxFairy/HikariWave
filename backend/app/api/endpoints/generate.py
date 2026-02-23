@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,9 +11,16 @@ from backend.app.schemas.generation import (
     LyricsResponse,
     MusicGenerationRequest,
     PromptEnhancementRequest,
+    StyleSuggestion,
+    StyleSuggestionRequest,
+    StyleSuggestionResponse,
     TaskResponse,
+    TitleGenerationRequest,
+    TitleGenerationResponse,
 )
 from backend.app.services.generation import generation_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/generate", tags=["generate"])
 
@@ -28,11 +37,15 @@ async def generate_music(
         genre=req.genre,
         mood=req.mood,
         lyrics=req.lyrics,
+        title=req.title,
+        tempo=req.tempo,
+        musical_key=req.musical_key,
+        instruments=req.instruments,
+        language=req.language,
+        instrumental=req.instrumental,
         enhance_prompt=req.enhance_prompt,
         generate_lyrics=req.generate_lyrics,
     )
-    # In production this dispatches to Celery.
-    # For MVP we return the task_id immediately.
     return TaskResponse(task_id=gen.task_id, status=gen.status)
 
 
@@ -46,7 +59,23 @@ async def generate_lyrics(req: LyricsGenerationRequest):
         mood=req.mood,
         language=req.language,
     )
-    return LyricsResponse(lyrics=lyrics, genre=req.genre, mood=req.mood)
+    # Try to include style suggestions alongside lyrics
+    suggestions = None
+    try:
+        suggestion_provider, suggestion_model = provider_manager.get_llm_provider(
+            "suggestion"
+        )
+        raw = await suggestion_provider.suggest_style(req.prompt, suggestion_model)
+        suggestions = StyleSuggestion(**raw)
+    except Exception:
+        logger.debug("Style suggestion alongside lyrics failed, skipping")
+
+    return LyricsResponse(
+        lyrics=lyrics,
+        genre=req.genre,
+        mood=req.mood,
+        suggestions=suggestions,
+    )
 
 
 @router.post("/enhance-prompt", response_model=EnhancedPromptResponse)
@@ -62,3 +91,24 @@ async def enhance_prompt(req: PromptEnhancementRequest):
         original_prompt=req.prompt,
         enhanced_prompt=enhanced,
     )
+
+
+@router.post("/suggest-style", response_model=StyleSuggestionResponse)
+async def suggest_style(req: StyleSuggestionRequest):
+    provider, model = provider_manager.get_llm_provider("suggestion")
+    raw = await provider.suggest_style(req.prompt, model)
+    suggestions = StyleSuggestion(**raw)
+    return StyleSuggestionResponse(suggestions=suggestions)
+
+
+@router.post("/title", response_model=TitleGenerationResponse)
+async def generate_title(req: TitleGenerationRequest):
+    provider, model = provider_manager.get_llm_provider("suggestion")
+    title = await provider.generate_title(
+        model=model,
+        lyrics=req.lyrics,
+        genre=req.genre,
+        mood=req.mood,
+        prompt=req.prompt,
+    )
+    return TitleGenerationResponse(title=title)

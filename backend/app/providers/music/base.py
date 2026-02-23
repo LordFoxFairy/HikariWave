@@ -20,6 +20,9 @@ class MusicGenerationRequest(BaseModel):
     genre: str | None = None
     mood: str | None = None
     tempo: int | None = Field(default=None, ge=40, le=240)
+    musical_key: str | None = None
+    instruments: list[str] | None = None
+    instrumental: bool = False
     seed: int | None = None
 
 
