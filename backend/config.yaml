@@ -19,12 +19,16 @@ music:
     - name: local
       type: local_gpu
       models:
-        - ace-step-v1
-        - musicgen-large
+        - name: musicgen-small
+          model_id: facebook/musicgen-small
+        - name: musicgen-medium
+          model_id: facebook/musicgen-medium
+        - name: ace-step-v1
+          model_id: ACE-Step/ACE-Step-v1-3.5B
   router:
     default: local:ace-step-v1
     vocal: local:ace-step-v1
-    instrumental: local:musicgen-large
+    instrumental: local:musicgen-small
 
 image:
   providers:

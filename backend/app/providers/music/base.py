@@ -7,6 +7,14 @@ class MusicProviderConfig(BaseModel):
     name: str
     provider_type: str
     model_name: str
+    model_id: str = Field(
+        default="facebook/musicgen-small",
+        description="HuggingFace model ID (e.g. facebook/musicgen-small)",
+    )
+    cache_dir: str | None = Field(
+        default=None,
+        description="Custom cache directory for downloaded model weights",
+    )
     device: str = "cpu"
     output_format: str = "wav"
     sample_rate: int = 32000
