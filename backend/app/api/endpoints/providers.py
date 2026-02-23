@@ -19,21 +19,21 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 async def list_llm_providers(
         svc: ProviderService = Depends(get_provider_service),
 ):
-    return {"providers": svc.list_llm_providers()}
+    return {"providers": await svc.list_llm_providers()}
 
 
 @router.get("/music")
 async def list_music_providers(
         svc: ProviderService = Depends(get_provider_service),
 ):
-    return {"providers": svc.list_music_providers()}
+    return {"providers": await svc.list_music_providers()}
 
 
 @router.get("/image")
 async def list_image_providers(
         svc: ProviderService = Depends(get_provider_service),
 ):
-    return {"providers": svc.list_image_providers()}
+    return {"providers": await svc.list_image_providers()}
 
 
 @router.get("/music/config", response_model=MusicConfigResponse)
@@ -41,7 +41,7 @@ async def get_music_config(
         svc: ProviderService = Depends(get_provider_service),
 ):
     """Get current music configuration (providers + router)."""
-    return svc.get_music_config()
+    return await svc.get_music_config()
 
 
 @router.put("/music/config", response_model=MusicConfigResponse)
@@ -51,7 +51,7 @@ async def update_music_config(
 ):
     """Update music configuration. Persists to config.yaml."""
     providers = [p.model_dump() for p in body.providers]
-    return svc.update_music_config(providers, body.router)
+    return await svc.update_music_config(providers, body.router)
 
 
 @router.get("/llm/config", response_model=LLMConfigResponse)
@@ -59,7 +59,7 @@ async def get_llm_config(
         svc: ProviderService = Depends(get_provider_service),
 ):
     """Get current LLM configuration (providers + router)."""
-    return svc.get_llm_config()
+    return await svc.get_llm_config()
 
 
 @router.put("/llm/config", response_model=LLMConfigResponse)
@@ -69,7 +69,7 @@ async def update_llm_config(
 ):
     """Update LLM configuration (providers + router). Persists to config.yaml."""
     providers = [p.model_dump() for p in body.providers]
-    return svc.update_llm_config(providers, body.router)
+    return await svc.update_llm_config(providers, body.router)
 
 
 @router.post("/llm/test", response_model=LLMTestResponse)

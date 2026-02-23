@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import logging
 import uuid
@@ -26,13 +27,13 @@ class TogetherImageProvider(BaseImageProvider):
         logger.info("Together image provider ready: model=%s", self.config.model_name)
 
     async def generate(
-        self, request: ImageGenerationRequest
+            self, request: ImageGenerationRequest
     ) -> ImageGenerationResponse:
         if not self.is_loaded:
             await self.load_model()
 
         output_dir = Path(settings.storage_dir) / "covers"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(output_dir.mkdir, parents=True, exist_ok=True)
         file_name = f"{uuid.uuid4().hex}.png"
         output_path = output_dir / file_name
 
@@ -73,7 +74,7 @@ class TogetherImageProvider(BaseImageProvider):
         image_b64 = data["data"][0]["b64_json"]
         image_bytes = base64.b64decode(image_b64)
 
-        output_path.write_bytes(image_bytes)
+        await asyncio.to_thread(output_path.write_bytes, image_bytes)
         logger.info("Cover art saved: %s", output_path)
 
         return ImageGenerationResponse(

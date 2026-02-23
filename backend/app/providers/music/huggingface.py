@@ -165,8 +165,10 @@ class HuggingFaceMusicProvider(BaseMusicProvider):
             device = device_cfg
         self._resolved_device = device
 
-        # Detect backend
-        self._backend_type = _detect_backend(model_id, self.config.backend_type)
+        # Detect backend (may query HuggingFace Hub -- blocking I/O)
+        self._backend_type = await asyncio.to_thread(
+            _detect_backend, model_id, self.config.backend_type,
+        )
         logger.info("Detected backend: %s for %s", self._backend_type, model_id)
 
         if self._backend_type == "diffusers":

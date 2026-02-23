@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from langchain.chat_models import init_chat_model
@@ -38,7 +39,8 @@ class LLMProvider:
         init_kwargs["temperature"] = kwargs.get("temperature", 0.8)
         init_kwargs["max_tokens"] = kwargs.get("max_tokens", 2048)
 
-        self._model = init_chat_model(
+        self._model = await asyncio.to_thread(
+            init_chat_model,
             model,
             model_provider=self.config.provider_type,
             **init_kwargs,

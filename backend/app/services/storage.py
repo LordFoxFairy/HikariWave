@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from pathlib import Path
@@ -15,39 +16,43 @@ class StorageService:
         self.covers_dir = self.base_dir / settings.covers_subdir
         self.covers_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_audio_path(self, filename: str) -> Path | None:
+    async def get_audio_path(self, filename: str) -> Path | None:
         path = self.audio_dir / filename
-        if path.exists():
+        exists = await asyncio.to_thread(path.exists)
+        if exists:
             return path
         return None
 
-    def get_cover_path(self, filename: str) -> Path | None:
+    async def get_cover_path(self, filename: str) -> Path | None:
         path = self.covers_dir / filename
-        if path.exists():
+        exists = await asyncio.to_thread(path.exists)
+        if exists:
             return path
         return None
 
-    def delete_audio(self, filename: str) -> bool:
+    async def delete_audio(self, filename: str) -> bool:
         path = self.audio_dir / filename
-        if path.exists():
-            path.unlink()
+        exists = await asyncio.to_thread(path.exists)
+        if exists:
+            await asyncio.to_thread(path.unlink)
             logger.info("Deleted audio file: %s", filename)
             return True
         return False
 
-    def delete_cover(self, filename: str) -> bool:
+    async def delete_cover(self, filename: str) -> bool:
         path = self.covers_dir / filename
-        if path.exists():
-            path.unlink()
+        exists = await asyncio.to_thread(path.exists)
+        if exists:
+            await asyncio.to_thread(path.unlink)
             logger.info("Deleted cover file: %s", filename)
             return True
         return False
 
-    def save_audio(self, data: bytes, fmt: str = "wav") -> str:
+    async def save_audio(self, data: bytes, fmt: str = "wav") -> str:
         """Write raw audio bytes to disk and return the generated filename."""
         filename = f"{uuid.uuid4().hex}.{fmt}"
         path = self.audio_dir / filename
-        path.write_bytes(data)
+        await asyncio.to_thread(path.write_bytes, data)
         logger.info("Saved audio file: %s (%d bytes)", filename, len(data))
         return filename
 

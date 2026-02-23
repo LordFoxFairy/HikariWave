@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -33,7 +34,7 @@ async def stream_audio(
     filename = PurePosixPath(file_id).name
     if not filename:
         raise HTTPException(status_code=400, detail="Invalid file_id")
-    path = storage_service.get_audio_path(filename)
+    path = await storage_service.get_audio_path(filename)
     if path is None:
         raise HTTPException(status_code=404, detail="Audio file not found")
 
@@ -64,22 +65,25 @@ async def stream_audio(
     )
 
 
-async def _convert_audio(source_path, target_format: str):
+async def _convert_audio(source_path: Path, target_format: str) -> Path | None:
     """Convert audio using pydub. Returns converted file path or None."""
-    try:
+
+    def _do_convert() -> Path | None:
         from pydub import AudioSegment
 
-        audio = AudioSegment.from_file(str(source_path))
         converted_name = source_path.stem + f".{target_format}"
         converted_path = source_path.parent / converted_name
         if converted_path.exists():
             return converted_path
+        audio = AudioSegment.from_file(str(source_path))
         audio.export(str(converted_path), format=target_format)
+        return converted_path
+
+    try:
+        return await asyncio.to_thread(_do_convert)
     except ImportError:
         logger.warning("pydub not installed, cannot convert audio format")
         return None
     except Exception:
         logger.exception("Audio format conversion failed")
         return None
-    else:
-        return converted_path

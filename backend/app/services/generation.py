@@ -293,7 +293,7 @@ class GenerationService:
 
             # Persist audio bytes to disk via storage service.
             if response.audio_data:
-                filename = storage_service.save_audio(
+                filename = await storage_service.save_audio(
                     response.audio_data, response.format
                 )
             else:
@@ -460,9 +460,9 @@ class GenerationService:
             return False
         # Clean up files
         if gen.audio_path:
-            storage_service.delete_audio(Path(gen.audio_path).name)
+            await storage_service.delete_audio(Path(gen.audio_path).name)
         if gen.cover_art_path:
-            storage_service.delete_cover(Path(gen.cover_art_path).name)
+            await storage_service.delete_cover(Path(gen.cover_art_path).name)
         return await self._repo.delete(generation_id)
 
 

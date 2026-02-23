@@ -21,7 +21,7 @@ async def serve_cover(file_id: str):
     filename = PurePosixPath(file_id).name
     if not filename:
         raise HTTPException(status_code=400, detail="Invalid file_id")
-    path = storage_service.get_cover_path(filename)
+    path = await storage_service.get_cover_path(filename)
     if path is None:
         raise HTTPException(status_code=404, detail="Cover art not found")
     suffix = path.suffix.lstrip(".")

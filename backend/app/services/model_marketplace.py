@@ -90,7 +90,7 @@ class ModelMarketplaceService:
     def __init__(self):
         self._downloads: dict[str, DownloadProgress] = {}
 
-    def search_models(
+    async def search_models(
             self,
             query: str | None = None,
             pipeline_tag: str | None = None,
@@ -99,16 +99,18 @@ class ModelMarketplaceService:
     ) -> list[HFModelInfo]:
         from huggingface_hub import HfApi
 
-        api = HfApi()
-        models = api.list_models(
-            search=query or None,
-            pipeline_tag=pipeline_tag or None,
-            sort=sort,
-            direction=-1,
-            limit=limit,
-        )
+        def _search() -> list:
+            api = HfApi()
+            return list(api.list_models(
+                search=query or None,
+                pipeline_tag=pipeline_tag or None,
+                sort=sort,
+                direction=-1,
+                limit=limit,
+            ))
 
-        cached_ids = self._get_cached_ids()
+        models = await asyncio.to_thread(_search)
+        cached_ids = await self._get_cached_ids()
 
         return [
             HFModelInfo(
@@ -124,20 +126,23 @@ class ModelMarketplaceService:
             for m in models
         ]
 
-    def get_model_info(self, repo_id: str) -> HFModelDetail:
+    async def get_model_info(self, repo_id: str) -> HFModelDetail:
         from huggingface_hub import HfApi
 
-        api = HfApi()
-        info = api.model_info(
-            repo_id,
-            expand=[
-                "cardData",
-                "downloadsAllTime",
-                "likes",
-                "safetensors",
-                "usedStorage",
-            ],
-        )
+        def _fetch_info():
+            api = HfApi()
+            return api.model_info(
+                repo_id,
+                expand=[
+                    "cardData",
+                    "downloadsAllTime",
+                    "likes",
+                    "safetensors",
+                    "usedStorage",
+                ],
+            )
+
+        info = await asyncio.to_thread(_fetch_info)
 
         license_val = None
         if info.card_data and hasattr(info.card_data, "license"):
@@ -155,7 +160,7 @@ class ModelMarketplaceService:
         if used_storage:
             size_str = self._format_size(used_storage)
 
-        cached_ids = self._get_cached_ids()
+        cached_ids = await self._get_cached_ids()
 
         return HFModelDetail(
             id=info.id,
@@ -216,10 +221,10 @@ class ModelMarketplaceService:
     def get_all_downloads(self) -> list[DownloadProgress]:
         return list(self._downloads.values())
 
-    def list_cached_models(self) -> list[CachedModelInfo]:
+    async def list_cached_models(self) -> list[CachedModelInfo]:
         from huggingface_hub import scan_cache_dir
 
-        cache_info = scan_cache_dir()
+        cache_info = await asyncio.to_thread(scan_cache_dir)
         return [
             CachedModelInfo(
                 repo_id=repo.repo_id,
@@ -231,24 +236,27 @@ class ModelMarketplaceService:
             if repo.repo_type == "model"
         ]
 
-    def delete_cached_model(self, repo_id: str) -> bool:
+    async def delete_cached_model(self, repo_id: str) -> bool:
         from huggingface_hub import scan_cache_dir
 
-        cache_info = scan_cache_dir()
-        for repo in cache_info.repos:
-            if repo.repo_id == repo_id:
-                hashes = [rev.commit_hash for rev in repo.revisions]
-                strategy = cache_info.delete_revisions(*hashes)
-                strategy.execute()
-                logger.info("Deleted cached model: %s", repo_id)
-                return True
-        return False
+        def _delete() -> bool:
+            cache_info = scan_cache_dir()
+            for repo in cache_info.repos:
+                if repo.repo_id == repo_id:
+                    hashes = [rev.commit_hash for rev in repo.revisions]
+                    strategy = cache_info.delete_revisions(*hashes)
+                    strategy.execute()
+                    logger.info("Deleted cached model: %s", repo_id)
+                    return True
+            return False
 
-    def _get_cached_ids(self) -> set[str]:
+        return await asyncio.to_thread(_delete)
+
+    async def _get_cached_ids(self) -> set[str]:
         try:
             from huggingface_hub import scan_cache_dir
 
-            cache_info = scan_cache_dir()
+            cache_info = await asyncio.to_thread(scan_cache_dir)
             return {
                 repo.repo_id
                 for repo in cache_info.repos

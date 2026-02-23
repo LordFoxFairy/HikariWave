@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from backend.app.core.config import load_raw_yaml_config, save_yaml_config
@@ -13,29 +14,29 @@ class ProviderService:
     API endpoints call this service instead of importing provider_manager directly.
     """
 
-    def list_llm_providers(self) -> list[dict]:
+    async def list_llm_providers(self) -> list[dict]:
         return provider_manager.list_llm_providers()
 
-    def list_music_providers(self) -> list[dict]:
+    async def list_music_providers(self) -> list[dict]:
         return provider_manager.list_music_providers()
 
-    def list_image_providers(self) -> list[dict]:
+    async def list_image_providers(self) -> list[dict]:
         return provider_manager.list_image_providers()
 
-    def get_llm_config(self) -> dict:
+    async def get_llm_config(self) -> dict:
         return provider_manager.get_llm_config()
 
-    def get_music_config(self) -> dict:
+    async def get_music_config(self) -> dict:
         return provider_manager.get_music_config()
 
-    def update_music_config(
+    async def update_music_config(
             self, providers: list[dict], router: dict[str, str],
     ) -> dict:
         """Update music config in memory and persist to config.yaml."""
         provider_manager.update_music_config(providers, router)
 
         # Persist to config.yaml
-        raw_config = load_raw_yaml_config()
+        raw_config = await asyncio.to_thread(load_raw_yaml_config)
         raw_config.setdefault("music", {})
 
         yaml_providers = []
@@ -49,17 +50,19 @@ class ProviderService:
 
         raw_config["music"]["providers"] = yaml_providers
         raw_config["music"]["router"] = router
-        save_yaml_config(raw_config)
+        await asyncio.to_thread(save_yaml_config, raw_config)
 
         return provider_manager.get_music_config()
 
-    def update_llm_config(self, providers: list[dict], router: dict[str, str]) -> dict:
+    async def update_llm_config(
+            self, providers: list[dict], router: dict[str, str],
+    ) -> dict:
         """Update LLM config in memory and persist to config.yaml."""
         # Update in-memory state
         provider_manager.update_llm_config(providers, router)
 
         # Persist to config.yaml (raw, without resolved env vars)
-        raw_config = load_raw_yaml_config()
+        raw_config = await asyncio.to_thread(load_raw_yaml_config)
         raw_config.setdefault("llm", {})
 
         # Build provider entries for YAML
@@ -79,7 +82,7 @@ class ProviderService:
 
         raw_config["llm"]["providers"] = yaml_providers
         raw_config["llm"]["router"] = router
-        save_yaml_config(raw_config)
+        await asyncio.to_thread(save_yaml_config, raw_config)
 
         return provider_manager.get_llm_config()
 

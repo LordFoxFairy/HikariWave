@@ -25,7 +25,7 @@ async def search_models(
         svc: ModelMarketplaceService = Depends(get_marketplace_service),
 ):
     """Search HuggingFace Hub for models."""
-    models = svc.search_models(
+    models = await svc.search_models(
         query=q,
         pipeline_tag=pipeline_tag,
         sort=sort,
@@ -41,7 +41,7 @@ async def get_model_info(
 ):
     """Get detailed info for a specific model."""
     try:
-        return svc.get_model_info(repo_id)
+        return await svc.get_model_info(repo_id)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
@@ -85,7 +85,7 @@ async def list_cached_models(
         svc: ModelMarketplaceService = Depends(get_marketplace_service),
 ):
     """List locally cached models."""
-    return CachedModelsResponse(models=svc.list_cached_models())
+    return CachedModelsResponse(models=await svc.list_cached_models())
 
 
 @router.delete("/cache/{repo_id:path}", response_model=DeleteCacheResponse)
@@ -94,7 +94,7 @@ async def delete_cached_model(
         svc: ModelMarketplaceService = Depends(get_marketplace_service),
 ):
     """Delete a model from the local cache."""
-    deleted = svc.delete_cached_model(repo_id)
+    deleted = await svc.delete_cached_model(repo_id)
     if deleted:
         return DeleteCacheResponse(
             success=True, message=f"Deleted {repo_id} from cache"

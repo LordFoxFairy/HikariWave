@@ -41,7 +41,7 @@ class BaseImageProvider(ABC):
 
     @abstractmethod
     async def generate(
-        self, request: ImageGenerationRequest
+            self, request: ImageGenerationRequest
     ) -> ImageGenerationResponse: ...
 
     @abstractmethod
