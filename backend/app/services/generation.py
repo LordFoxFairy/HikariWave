@@ -337,9 +337,28 @@ class GenerationService:
         return await self._repo.get_by_task_id(task_id)
 
     async def list_generations(
-        self, offset: int = 0, limit: int = 50
+        self,
+        offset: int = 0,
+        limit: int = 50,
+        search: str | None = None,
+        is_liked: bool | None = None,
+        genre: str | None = None,
+        mood: str | None = None,
+        status: str | None = None,
+        sort: str = "created_at",
+        sort_dir: str = "desc",
     ) -> tuple[list[Generation], int]:
-        return await self._repo.list_all(offset=offset, limit=limit)
+        return await self._repo.list_all(
+            offset=offset,
+            limit=limit,
+            search=search,
+            is_liked=is_liked,
+            genre=genre,
+            mood=mood,
+            status=status,
+            sort=sort,
+            sort_dir=sort_dir,
+        )
 
     async def delete_generation(self, generation_id: int) -> bool:
         gen = await self._repo.get_by_id(generation_id)

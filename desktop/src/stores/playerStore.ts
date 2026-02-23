@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Generation } from "../types";
 import { api } from "../services/api";
+import { useLibraryStore } from "./libraryStore";
 
 interface PlayerState {
   currentTrack: Generation | null;
@@ -39,12 +40,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       const newLiked = !track.is_liked;
       set({ currentTrack: { ...track, is_liked: newLiked } });
     }
-    api.toggleLike(id).catch(() => {
-      // Revert on failure
-      const t = get().currentTrack;
-      if (t && t.id === id) {
-        set({ currentTrack: { ...t, is_liked: !t.is_liked } });
-      }
-    });
+    // Sync with libraryStore
+    useLibraryStore.getState().toggleLike(id);
   },
 }));

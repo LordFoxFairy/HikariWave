@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from backend.app.db.session import async_session_factory
 from backend.app.models.database import Generation
@@ -42,17 +42,60 @@ class GenerationRepository:
             return result.scalar_one_or_none()
 
     async def list_all(
-        self, offset: int = 0, limit: int = 50
+        self,
+        offset: int = 0,
+        limit: int = 50,
+        search: str | None = None,
+        is_liked: bool | None = None,
+        genre: str | None = None,
+        mood: str | None = None,
+        status: str | None = None,
+        sort: str = "created_at",
+        sort_dir: str = "desc",
     ) -> tuple[list[Generation], int]:
         async with async_session_factory() as db:
+            # Build shared filter conditions
+            conditions = []
+            if search:
+                pattern = f"%{search}%"
+                conditions.append(
+                    or_(
+                        Generation.title.ilike(pattern),
+                        Generation.prompt.ilike(pattern),
+                        Generation.genre.ilike(pattern),
+                        Generation.mood.ilike(pattern),
+                    )
+                )
+            if is_liked is not None:
+                conditions.append(Generation.is_liked == (1 if is_liked else 0))
+            if genre:
+                conditions.append(Generation.genre.ilike(f"%{genre}%"))
+            if mood:
+                conditions.append(Generation.mood.ilike(f"%{mood}%"))
+            if status:
+                conditions.append(Generation.status == status)
+
+            # Count query with filters
             count_q = select(func.count()).select_from(Generation)
+            if conditions:
+                count_q = count_q.where(*conditions)
             total = (await db.execute(count_q)).scalar() or 0
-            q = (
-                select(Generation)
-                .order_by(Generation.created_at.desc())
-                .offset(offset)
-                .limit(limit)
-            )
+
+            # Resolve sort column
+            sort_columns = {
+                "created_at": Generation.created_at,
+                "title": Generation.title,
+                "actual_duration": Generation.actual_duration,
+            }
+            sort_col = sort_columns.get(sort, Generation.created_at)
+            order = sort_col.asc() if sort_dir == "asc" else sort_col.desc()
+
+            # Data query with filters, sorting, and pagination
+            q = select(Generation)
+            if conditions:
+                q = q.where(*conditions)
+            q = q.order_by(order).offset(offset).limit(limit)
+
             rows = (await db.execute(q)).scalars().all()
             return list(rows), total
 

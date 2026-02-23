@@ -165,6 +165,7 @@ export interface AppSettings {
 
 export type PageId =
   | "create"
+  | "library"
   | "history"
   | "providers"
   | "settings";
@@ -202,6 +203,24 @@ export interface LLMTestResponse {
 export interface OllamaStatus {
   available: boolean;
   models: string[];
+}
+
+// ---- Music config management types ----
+
+export interface MusicModelEntry {
+  name: string;
+  model_id: string;
+}
+
+export interface MusicProviderEntry {
+  name: string;
+  type: string;
+  models: MusicModelEntry[];
+}
+
+export interface MusicProviderConfig {
+  providers: MusicProviderEntry[];
+  router: Record<string, string>;
 }
 
 // ---- Marketplace types ----

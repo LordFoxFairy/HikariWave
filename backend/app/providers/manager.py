@@ -79,6 +79,23 @@ class ProviderManager:
             )
             self._llm_providers[name] = cls(cfg)
 
+    def _resolve_music_provider_class(
+        self, model_name: str,
+    ) -> type[BaseMusicProvider] | None:
+        # Exact match first
+        cls = MUSIC_PROVIDER_CLASSES.get(model_name)
+        if cls:
+            return cls
+        # Pattern match
+        name_lower = model_name.lower()
+        if "musicgen" in name_lower:
+            return MusicGenProvider
+        if any(k in name_lower for k in (
+            "ace-step", "ace_step", "acestep",
+        )):
+            return ACEStepProvider
+        return None
+
     def _init_music_providers(self) -> None:
         self._music_providers.clear()
         for entry in self._config.get("music", {}).get("providers", []):
@@ -90,7 +107,7 @@ class ProviderManager:
                 else:
                     model_name = model_entry
                     model_id = ""
-                cls = MUSIC_PROVIDER_CLASSES.get(model_name)
+                cls = self._resolve_music_provider_class(model_name)
                 if cls is None:
                     logger.warning("Unknown music model: %s", model_name)
                     continue
@@ -181,6 +198,39 @@ class ProviderManager:
         self._llm_router = router
 
     # ------ Music public API ------
+
+    def get_music_config(self) -> dict:
+        """Return the full music configuration: providers + router."""
+        providers = []
+        for entry in self._config.get("music", {}).get("providers", []):
+            models = []
+            for m in entry.get("models", []):
+                if isinstance(m, dict):
+                    models.append({
+                        "name": m["name"],
+                        "model_id": m.get("model_id", ""),
+                    })
+                else:
+                    models.append({"name": m, "model_id": ""})
+            providers.append({
+                "name": entry["name"],
+                "type": entry.get("type", "local_gpu"),
+                "models": models,
+            })
+        return {
+            "providers": providers,
+            "router": dict(self._music_router),
+        }
+
+    def update_music_config(
+        self, providers: list[dict], router: dict[str, str],
+    ) -> None:
+        """Update the music section of config and reinitialise providers."""
+        self._config.setdefault("music", {})
+        self._config["music"]["providers"] = providers
+        self._config["music"]["router"] = router
+        self._init_music_providers()
+        self._music_router = router
 
     def get_music_provider(
         self, request: MusicGenerationRequest | None = None

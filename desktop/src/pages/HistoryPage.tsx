@@ -137,7 +137,7 @@ export default function HistoryPage() {
     setError(null);
     try {
       const data = await api.getGenerations();
-      setGenerations(data);
+      setGenerations(data.items);
     } catch {
       setError("Could not load tracks. Check that the backend is running.");
     } finally {

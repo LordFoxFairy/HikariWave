@@ -1,10 +1,11 @@
-import { Music, PlusCircle, Clock, Settings, Sparkles, Layers } from "lucide-react";
+import { Music, PlusCircle, Clock, Settings, Sparkles, Layers, Library } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "../stores/appStore";
 import type { PageId } from "../types";
 
 const navItems: { id: PageId; label: string; icon: typeof Music }[] = [
   { id: "create", label: "Create", icon: PlusCircle },
+  { id: "library", label: "Library", icon: Library },
   { id: "history", label: "History", icon: Clock },
   { id: "providers", label: "Providers", icon: Layers },
   { id: "settings", label: "Settings", icon: Settings },
@@ -91,10 +92,10 @@ export default function Sidebar() {
               className={`
                 w-full flex items-center gap-2.5 px-3 py-2
                 rounded-lg text-sm font-medium relative
-                transition-all duration-150 cursor-pointer
+                transition-colors duration-150 cursor-pointer
                 ${
                   active
-                    ? "bg-primary-50 text-primary-700"
+                    ? "text-primary-700"
                     : "text-text-secondary hover:bg-surface-tertiary hover:text-text-primary"
                 }
               `}

@@ -15,9 +15,26 @@ router = APIRouter(prefix="/generations", tags=["history"])
 async def list_generations(
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    search: str | None = None,
+    is_liked: bool | None = None,
+    genre: str | None = None,
+    mood: str | None = None,
+    status: str | None = None,
+    sort: str = "created_at",
+    sort_dir: str = "desc",
     svc: GenerationService = Depends(get_generation_service),
 ):
-    items, total = await svc.list_generations(offset=offset, limit=limit)
+    items, total = await svc.list_generations(
+        offset=offset,
+        limit=limit,
+        search=search,
+        is_liked=is_liked,
+        genre=genre,
+        mood=mood,
+        status=status,
+        sort=sort,
+        sort_dir=sort_dir,
+    )
     return GenerationListResponse(items=items, total=total)
 
 

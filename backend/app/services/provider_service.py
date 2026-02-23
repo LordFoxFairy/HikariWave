@@ -25,6 +25,35 @@ class ProviderService:
     def get_llm_config(self) -> dict:
         return provider_manager.get_llm_config()
 
+    def get_music_config(self) -> dict:
+        return provider_manager.get_music_config()
+
+    def update_music_config(
+        self, providers: list[dict], router: dict[str, str],
+    ) -> dict:
+        """Update music config in memory and persist to config.yaml."""
+        provider_manager.update_music_config(providers, router)
+
+        # Persist to config.yaml
+        raw_config = load_raw_yaml_config()
+        raw_config.setdefault("music", {})
+
+        yaml_providers = []
+        for p in providers:
+            entry: dict = {"name": p["name"]}
+            ptype = p.get("type", "local_gpu")
+            if ptype != "local_gpu":
+                entry["type"] = ptype
+            if p.get("models"):
+                entry["models"] = p["models"]
+            yaml_providers.append(entry)
+
+        raw_config["music"]["providers"] = yaml_providers
+        raw_config["music"]["router"] = router
+        save_yaml_config(raw_config)
+
+        return provider_manager.get_music_config()
+
     def update_llm_config(self, providers: list[dict], router: dict[str, str]) -> dict:
         """Update LLM config in memory and persist to config.yaml."""
         # Update in-memory state

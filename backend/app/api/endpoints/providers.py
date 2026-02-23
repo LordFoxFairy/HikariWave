@@ -6,6 +6,8 @@ from backend.app.schemas.provider import (
     LLMConfigUpdateRequest,
     LLMTestRequest,
     LLMTestResponse,
+    MusicConfigResponse,
+    MusicConfigUpdateRequest,
     OllamaStatusResponse,
 )
 from backend.app.services.provider_service import ProviderService
@@ -32,6 +34,24 @@ async def list_image_providers(
     svc: ProviderService = Depends(get_provider_service),
 ):
     return {"providers": svc.list_image_providers()}
+
+
+@router.get("/music/config", response_model=MusicConfigResponse)
+async def get_music_config(
+    svc: ProviderService = Depends(get_provider_service),
+):
+    """Get current music configuration (providers + router)."""
+    return svc.get_music_config()
+
+
+@router.put("/music/config", response_model=MusicConfigResponse)
+async def update_music_config(
+    body: MusicConfigUpdateRequest,
+    svc: ProviderService = Depends(get_provider_service),
+):
+    """Update music configuration. Persists to config.yaml."""
+    providers = [p.model_dump() for p in body.providers]
+    return svc.update_music_config(providers, body.router)
 
 
 @router.get("/llm/config", response_model=LLMConfigResponse)

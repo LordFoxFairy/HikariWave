@@ -17,6 +17,7 @@ import type {
   LLMTestRequest,
   LLMTestResponse,
   OllamaStatus,
+  MusicProviderConfig,
   HFSearchResponse,
   HFModelInfo,
   DownloadProgress,
@@ -96,10 +97,32 @@ export const api = {
     return gen;
   },
 
-  async getGenerations() {
-    // Backend returns {items: Generation[], total: number}
-    const data = await request<{ items: Generation[]; total: number }>("/generations");
-    return data.items;
+  async getGenerations(params?: {
+    offset?: number;
+    limit?: number;
+    search?: string;
+    is_liked?: boolean;
+    genre?: string;
+    mood?: string;
+    status?: string;
+    sort?: string;
+    sort_dir?: string;
+  }) {
+    const qs = new URLSearchParams();
+    if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params?.search) qs.set("search", params.search);
+    if (params?.is_liked !== undefined) qs.set("is_liked", String(params.is_liked));
+    if (params?.genre) qs.set("genre", params.genre);
+    if (params?.mood) qs.set("mood", params.mood);
+    if (params?.status) qs.set("status", params.status);
+    if (params?.sort) qs.set("sort", params.sort);
+    if (params?.sort_dir) qs.set("sort_dir", params.sort_dir);
+    const query = qs.toString();
+    const data = await request<{ items: Generation[]; total: number }>(
+      `/generations${query ? `?${query}` : ""}`,
+    );
+    return data;
   },
 
   getGeneration(id: number) {
@@ -182,6 +205,19 @@ export const api = {
     return request<OllamaStatus>(
       `/providers/ollama/status?base_url=${encodeURIComponent(baseUrl)}`,
     );
+  },
+
+  // ---- Music config management ----
+
+  getMusicConfig() {
+    return request<MusicProviderConfig>("/providers/music/config");
+  },
+
+  updateMusicConfig(data: MusicProviderConfig) {
+    return request<MusicProviderConfig>("/providers/music/config", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
   },
 
   // ---- Marketplace ----

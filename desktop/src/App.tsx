@@ -1,38 +1,23 @@
-import { AnimatePresence, motion } from "framer-motion";
 import Sidebar from "./components/Sidebar";
 import Player from "./components/Player";
 import CreatePage from "./pages/CreatePage";
+import LibraryPage from "./pages/LibraryPage";
 import HistoryPage from "./pages/HistoryPage";
 import ProvidersPage from "./pages/ProvidersPage";
 import SettingsPage from "./pages/SettingsPage";
 import { useAppStore } from "./stores/appStore";
 
-const pageVariants = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 },
-};
-
 function PageRouter() {
   const currentPage = useAppStore((s) => s.currentPage);
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={currentPage}
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        transition={{ duration: 0.2, ease: "easeInOut" }}
-        className="flex-1 flex flex-col overflow-hidden"
-      >
-        {currentPage === "create" && <CreatePage />}
-        {currentPage === "history" && <HistoryPage />}
-        {currentPage === "providers" && <ProvidersPage />}
-        {currentPage === "settings" && <SettingsPage />}
-      </motion.div>
-    </AnimatePresence>
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {currentPage === "create" && <CreatePage />}
+      {currentPage === "library" && <LibraryPage />}
+      {currentPage === "history" && <HistoryPage />}
+      {currentPage === "providers" && <ProvidersPage />}
+      {currentPage === "settings" && <SettingsPage />}
+    </div>
   );
 }
 

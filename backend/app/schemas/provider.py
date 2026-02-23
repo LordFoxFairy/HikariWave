@@ -67,6 +67,30 @@ class LLMTestResponse(BaseModel):
     models: list[str] = Field(default_factory=list)
 
 
+# ---- Music config management schemas ----
+
+
+class MusicModelEntry(BaseModel):
+    name: str
+    model_id: str = ""
+
+
+class MusicProviderEntry(BaseModel):
+    name: str
+    type: str = "local_gpu"
+    models: list[MusicModelEntry] = Field(default_factory=list)
+
+
+class MusicConfigResponse(BaseModel):
+    providers: list[MusicProviderEntry]
+    router: dict[str, str] = Field(default_factory=dict)
+
+
+class MusicConfigUpdateRequest(BaseModel):
+    providers: list[MusicProviderEntry]
+    router: dict[str, str] = Field(default_factory=dict)
+
+
 class OllamaStatusResponse(BaseModel):
     available: bool
     models: list[str] = Field(default_factory=list)
