@@ -167,3 +167,38 @@ export type PageId =
   | "create"
   | "history"
   | "settings";
+
+// ---- LLM config management types ----
+
+export type LLMProviderType = "openrouter" | "ollama" | "openai_compat";
+
+export interface LLMProviderEntry {
+  name: string;
+  type: LLMProviderType;
+  base_url: string;
+  api_key: string;
+  models: string[];
+}
+
+export interface LLMConfig {
+  providers: LLMProviderEntry[];
+  router: Record<string, string>;
+}
+
+export interface LLMTestRequest {
+  type: LLMProviderType;
+  base_url: string;
+  api_key?: string;
+  model?: string;
+}
+
+export interface LLMTestResponse {
+  success: boolean;
+  message: string;
+  models: string[];
+}
+
+export interface OllamaStatus {
+  available: boolean;
+  models: string[];
+}

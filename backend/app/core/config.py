@@ -40,3 +40,19 @@ def load_yaml_config(path: Path | None = None) -> dict:
     with open(config_path) as f:
         raw = yaml.safe_load(f) or {}
     return _walk_and_resolve(raw)
+
+
+def load_raw_yaml_config(path: Path | None = None) -> dict:
+    """Load config.yaml without resolving env vars (for editing/saving)."""
+    config_path = path or CONFIG_PATH
+    if not config_path.exists():
+        return {}
+    with open(config_path) as f:
+        return yaml.safe_load(f) or {}
+
+
+def save_yaml_config(config: dict, path: Path | None = None) -> None:
+    """Save config dict back to config.yaml."""
+    config_path = path or CONFIG_PATH
+    with open(config_path, "w") as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)

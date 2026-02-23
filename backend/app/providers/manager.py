@@ -4,6 +4,8 @@ from backend.app.core.config import load_yaml_config
 from backend.app.providers.image.base import BaseImageProvider, ImageProviderConfig
 from backend.app.providers.image.together import TogetherImageProvider
 from backend.app.providers.llm.base import BaseLLMProvider, LLMProviderConfig
+from backend.app.providers.llm.ollama import OllamaProvider
+from backend.app.providers.llm.openai_compat import OpenAICompatProvider
 from backend.app.providers.llm.openrouter import OpenRouterProvider
 from backend.app.providers.music.ace_step import ACEStepProvider
 from backend.app.providers.music.base import (
@@ -17,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 LLM_PROVIDER_CLASSES: dict[str, type[BaseLLMProvider]] = {
     "openrouter": OpenRouterProvider,
+    "ollama": OllamaProvider,
+    "openai_compat": OpenAICompatProvider,
 }
 
 MUSIC_PROVIDER_CLASSES: dict[str, type[BaseMusicProvider]] = {
@@ -57,11 +61,13 @@ class ProviderManager:
     # ------ initialisation helpers ------
 
     def _init_llm_providers(self) -> None:
+        self._llm_providers.clear()
         for entry in self._config.get("llm", {}).get("providers", []):
             name = entry["name"]
-            cls = LLM_PROVIDER_CLASSES.get(name)
+            provider_type = entry.get("type", name)
+            cls = LLM_PROVIDER_CLASSES.get(provider_type)
             if cls is None:
-                logger.warning("Unknown LLM provider: %s", name)
+                logger.warning("Unknown LLM provider type: %s", provider_type)
                 continue
             cfg = LLMProviderConfig(
                 name=name,
@@ -136,6 +142,32 @@ class ProviderManager:
                 }
             )
         return result
+
+    def get_llm_config(self) -> dict:
+        """Return the full LLM configuration: providers + router."""
+        providers = []
+        for entry in self._config.get("llm", {}).get("providers", []):
+            providers.append(
+                {
+                    "name": entry["name"],
+                    "type": entry.get("type", entry["name"]),
+                    "base_url": entry.get("base_url", ""),
+                    "api_key": entry.get("api_key", ""),
+                    "models": entry.get("models", []),
+                }
+            )
+        return {
+            "providers": providers,
+            "router": dict(self._llm_router),
+        }
+
+    def update_llm_config(self, providers: list[dict], router: dict[str, str]) -> None:
+        """Update the LLM section of config and reinitialise providers."""
+        self._config.setdefault("llm", {})
+        self._config["llm"]["providers"] = providers
+        self._config["llm"]["router"] = router
+        self._init_llm_providers()
+        self._llm_router = router
 
     # ------ Music public API ------
 

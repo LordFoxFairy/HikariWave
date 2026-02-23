@@ -13,6 +13,10 @@ import type {
   RemixRequest,
   CoverArtRequest,
   CoverArtResponse,
+  LLMConfig,
+  LLMTestRequest,
+  LLMTestResponse,
+  OllamaStatus,
 } from "../types";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:23456/api/v1";
@@ -148,5 +152,31 @@ export const api = {
 
   healthCheck() {
     return request<{ status: string }>("/health");
+  },
+
+  // ---- LLM config management ----
+
+  getLLMConfig() {
+    return request<LLMConfig>("/providers/llm/config");
+  },
+
+  updateLLMConfig(data: LLMConfig) {
+    return request<LLMConfig>("/providers/llm/config", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  testLLMConnection(data: LLMTestRequest) {
+    return request<LLMTestResponse>("/providers/llm/test", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  getOllamaStatus(baseUrl = "http://localhost:11434") {
+    return request<OllamaStatus>(
+      `/providers/ollama/status?base_url=${encodeURIComponent(baseUrl)}`,
+    );
   },
 };
