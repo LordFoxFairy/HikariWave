@@ -21,8 +21,12 @@ import {
   CheckCircle,
   Mic,
   Plus,
+  Repeat,
+  Shuffle,
+  Image,
+  GitBranch,
 } from "lucide-react";
-import type { Generation } from "../types";
+import type { Generation, ExtendRequest, RemixRequest } from "../types";
 import { useCreateStore } from "../stores/createStore";
 import {
   GENRE_OPTIONS,
@@ -109,6 +113,21 @@ export default function CreatePage() {
   const [completedGen, setCompletedGen] = useState<Generation | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   const lyricsRef = useRef<HTMLTextAreaElement>(null);
+
+  // Extend/Remix inline form state
+  const [showExtendForm, setShowExtendForm] = useState(false);
+  const [showRemixForm, setShowRemixForm] = useState(false);
+  const [extendPrompt, setExtendPrompt] = useState("");
+  const [extendLyrics, setExtendLyrics] = useState("");
+  const [extendDuration, setExtendDuration] = useState(30);
+  const [remixGenre, setRemixGenre] = useState("");
+  const [remixMood, setRemixMood] = useState("");
+  const [remixTempo, setRemixTempo] = useState<number | undefined>(undefined);
+  const [remixKey, setRemixKey] = useState("");
+  const [remixPrompt, setRemixPrompt] = useState("");
+  const [coverRegenerating, setCoverRegenerating] = useState(false);
+  const [extendRemixLoading, setExtendRemixLoading] = useState(false);
+  const [progressMessage, setProgressMessage] = useState("");
 
   const isGenerating = store.generationStatus === "pending" || store.generationStatus === "processing";
   const isCompleted = store.generationStatus === "completed";
@@ -320,20 +339,24 @@ export default function CreatePage() {
       try {
         const gen = await api.getTaskStatus(taskId);
         store.setProgress(gen.progress ?? 0);
+        setProgressMessage(gen.progress_message || "");
         if (gen.status === "completed") {
           store.setGenerationStatus("completed");
           store.setSuccessMessage("Music generated successfully!");
+          setProgressMessage("");
           clearInterval(interval);
           setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
         } else if (gen.status === "failed") {
           store.setGenerationStatus("failed");
           store.setErrorMessage(gen.error_message || "Generation failed.");
+          setProgressMessage("");
           clearInterval(interval);
         }
       } catch {
         clearInterval(interval);
         store.setGenerationStatus("failed");
         store.setErrorMessage("Lost connection during generation.");
+        setProgressMessage("");
       }
     }, 2000);
   }, [store]);
@@ -372,7 +395,94 @@ export default function CreatePage() {
 
   const handleCreateAnother = useCallback(() => {
     store.reset();
+    setShowExtendForm(false);
+    setShowRemixForm(false);
+    setCompletedGen(null);
   }, [store]);
+
+  /* -- Extend song -- */
+  const handleExtend = useCallback(async () => {
+    if (!completedGen) return;
+    setExtendRemixLoading(true);
+    try {
+      const data: ExtendRequest = {
+        generation_id: completedGen.id,
+        prompt: extendPrompt || undefined,
+        lyrics: extendLyrics || undefined,
+        duration: extendDuration,
+      };
+      const res = await api.extendSong(data);
+      store.setCurrentTaskId(res.task_id);
+      store.setGenerationStatus("processing");
+      store.setProgress(0);
+      setShowExtendForm(false);
+      pollTask(res.task_id);
+    } catch (err) {
+      store.setErrorMessage(err instanceof Error ? err.message : "Failed to extend song.");
+    } finally {
+      setExtendRemixLoading(false);
+    }
+  }, [completedGen, extendPrompt, extendLyrics, extendDuration, store, pollTask]);
+
+  /* -- Remix song -- */
+  const handleRemix = useCallback(async () => {
+    if (!completedGen) return;
+    setExtendRemixLoading(true);
+    try {
+      const data: RemixRequest = {
+        generation_id: completedGen.id,
+        genre: remixGenre || undefined,
+        mood: remixMood || undefined,
+        tempo: remixTempo,
+        musical_key: remixKey || undefined,
+        prompt: remixPrompt || undefined,
+      };
+      const res = await api.remixSong(data);
+      store.setCurrentTaskId(res.task_id);
+      store.setGenerationStatus("processing");
+      store.setProgress(0);
+      setShowRemixForm(false);
+      pollTask(res.task_id);
+    } catch (err) {
+      store.setErrorMessage(err instanceof Error ? err.message : "Failed to remix song.");
+    } finally {
+      setExtendRemixLoading(false);
+    }
+  }, [completedGen, remixGenre, remixMood, remixTempo, remixKey, remixPrompt, store, pollTask]);
+
+  /* -- Regenerate cover art -- */
+  const handleRegenerateCover = useCallback(async () => {
+    if (!completedGen) return;
+    setCoverRegenerating(true);
+    try {
+      const res = await api.regenerateCover({
+        generation_id: completedGen.id,
+        title: completedGen.title || undefined,
+        genre: completedGen.genre || undefined,
+        mood: completedGen.mood || undefined,
+        lyrics: completedGen.lyrics || undefined,
+      });
+      setCompletedGen({ ...completedGen, cover_art_path: res.cover_art_path });
+      store.setSuccessMessage("Cover art regenerated!");
+    } catch (err) {
+      store.setErrorMessage(err instanceof Error ? err.message : "Failed to regenerate cover.");
+    } finally {
+      setCoverRegenerating(false);
+    }
+  }, [completedGen, store]);
+
+  /* -- Open remix form with pre-filled values -- */
+  const openRemixForm = useCallback(() => {
+    if (completedGen) {
+      setRemixGenre(completedGen.genre || "");
+      setRemixMood(completedGen.mood || "");
+      setRemixTempo(completedGen.tempo || undefined);
+      setRemixKey(completedGen.musical_key || "");
+      setRemixPrompt("");
+    }
+    setShowRemixForm(true);
+    setShowExtendForm(false);
+  }, [completedGen]);
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -916,7 +1026,7 @@ export default function CreatePage() {
                   Creating your song...
                 </h3>
                 <p className="text-sm text-text-tertiary mb-5">
-                  AI is composing something special for you
+                  {progressMessage || "AI is composing something special for you"}
                 </p>
 
                 {/* Progress bar */}
@@ -959,31 +1069,61 @@ export default function CreatePage() {
               exit={{ opacity: 0, y: 16 }}
             >
               {isCompleted ? (
-                <div className="bg-white rounded-2xl border border-border shadow-md p-6 text-center">
-                  {completedCoverUrl ? (
-                    <div className="w-36 h-36 rounded-2xl overflow-hidden mx-auto mb-5 shadow-lg
-                                    ring-4 ring-primary-100">
-                      <img
-                        src={completedCoverUrl}
-                        alt="Cover art"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-5
-                                    border border-green-200">
-                      <Music className="w-7 h-7 text-green-600" />
-                    </div>
-                  )}
-                  <h3 className="text-lg font-bold text-text-primary mb-1">
-                    Song Created!
-                  </h3>
-                  <p className="text-sm text-text-tertiary mb-6">
-                    Head to History to listen and download your track
-                  </p>
+                <div className="bg-white rounded-2xl border border-border shadow-md p-6 space-y-5">
+                  {/* Cover art with regenerate overlay */}
+                  <div className="text-center">
+                    {completedCoverUrl ? (
+                      <div className="relative w-36 h-36 rounded-2xl overflow-hidden mx-auto mb-5 shadow-lg
+                                      ring-4 ring-primary-100 group/cover">
+                        <img
+                          src={completedCoverUrl}
+                          alt="Cover art"
+                          className={`w-full h-full object-cover transition-opacity ${coverRegenerating ? "opacity-40" : ""}`}
+                        />
+                        {coverRegenerating && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+                          </div>
+                        )}
+                        <button
+                          onClick={handleRegenerateCover}
+                          disabled={coverRegenerating}
+                          className="absolute inset-0 flex items-center justify-center bg-black/0
+                                     group-hover/cover:bg-black/30 transition-all cursor-pointer
+                                     opacity-0 group-hover/cover:opacity-100"
+                        >
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                                          bg-white/90 text-[11px] font-medium text-text-primary shadow-sm">
+                            <Image className="w-3 h-3" />
+                            Regenerate
+                          </div>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-5
+                                      border border-green-200">
+                        <Music className="w-7 h-7 text-green-600" />
+                      </div>
+                    )}
+                    <h3 className="text-lg font-bold text-text-primary mb-1">
+                      Song Created!
+                    </h3>
+
+                    {/* Lineage info */}
+                    {completedGen?.parent_id && completedGen?.parent_type && (
+                      <p className="text-[12px] text-text-tertiary flex items-center justify-center gap-1.5 mb-1">
+                        <GitBranch className="w-3 h-3" />
+                        {completedGen.parent_type === "extend" ? "Extended from" : "Remix of"} #{completedGen.parent_id}
+                      </p>
+                    )}
+
+                    <p className="text-sm text-text-tertiary">
+                      Head to History to listen and download your track
+                    </p>
+                  </div>
 
                   {store.lyrics && (
-                    <div className="text-left mb-6">
+                    <div className="text-left">
                       <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
                         Lyrics
                       </span>
@@ -994,18 +1134,221 @@ export default function CreatePage() {
                     </div>
                   )}
 
-                  <div className="flex justify-center">
+                  {/* Action buttons: Extend, Remix, Regenerate Cover, Create Another */}
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <button
+                      onClick={() => { setShowExtendForm(!showExtendForm); setShowRemixForm(false); }}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium
+                                 transition-all cursor-pointer border
+                                 ${showExtendForm
+                                   ? "bg-primary-50 text-primary-700 border-primary-200"
+                                   : "text-text-secondary bg-white border-border hover:border-primary-200 hover:text-text-primary"}`}
+                    >
+                      <Repeat className="w-3.5 h-3.5" />
+                      Extend
+                    </button>
+                    <button
+                      onClick={openRemixForm}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium
+                                 transition-all cursor-pointer border
+                                 ${showRemixForm
+                                   ? "bg-accent-50 text-accent-500 border-accent-200"
+                                   : "text-text-secondary bg-white border-border hover:border-accent-200 hover:text-text-primary"}`}
+                    >
+                      <Shuffle className="w-3.5 h-3.5" />
+                      Remix
+                    </button>
+                    <button
+                      onClick={handleRegenerateCover}
+                      disabled={coverRegenerating}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium
+                                 text-text-secondary bg-white border border-border hover:border-primary-200
+                                 hover:text-text-primary transition-all cursor-pointer
+                                 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {coverRegenerating ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Image className="w-3.5 h-3.5" />
+                      )}
+                      Regen Cover
+                    </button>
                     <button
                       onClick={handleCreateAnother}
-                      className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium
                                  text-primary-700 bg-primary-50 hover:bg-primary-100
                                  border border-primary-200
                                  transition-colors cursor-pointer"
                     >
-                      <RotateCcw className="w-4 h-4" />
+                      <RotateCcw className="w-3.5 h-3.5" />
                       Create Another
                     </button>
                   </div>
+
+                  {/* Extend inline form */}
+                  <AnimatePresence>
+                    {showExtendForm && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="bg-surface-secondary rounded-xl border border-border-light p-4 space-y-3">
+                          <h4 className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
+                            <Repeat className="w-3.5 h-3.5 text-primary-500" />
+                            Extend Song
+                          </h4>
+                          <input
+                            type="text"
+                            value={extendPrompt}
+                            onChange={(e) => setExtendPrompt(e.target.value)}
+                            placeholder="Optional: describe how to continue..."
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-white text-sm
+                                       placeholder:text-text-tertiary/60 focus:outline-none focus:ring-2
+                                       focus:ring-primary-200"
+                          />
+                          <textarea
+                            value={extendLyrics}
+                            onChange={(e) => setExtendLyrics(e.target.value)}
+                            placeholder="Optional: additional lyrics..."
+                            rows={3}
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-white text-sm
+                                       font-mono placeholder:text-text-tertiary/60 focus:outline-none
+                                       focus:ring-2 focus:ring-primary-200 resize-none"
+                          />
+                          <div className="flex items-center gap-3">
+                            <label className="text-[12px] text-text-secondary">Duration:</label>
+                            <input
+                              type="range"
+                              min={10}
+                              max={120}
+                              step={5}
+                              value={extendDuration}
+                              onChange={(e) => setExtendDuration(Number(e.target.value))}
+                              className="flex-1 accent-primary-600"
+                            />
+                            <span className="text-[12px] text-text-primary tabular-nums w-10 text-right">
+                              {extendDuration}s
+                            </span>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => setShowExtendForm(false)}
+                              className="px-3 py-1.5 rounded-lg text-[12px] text-text-secondary hover:bg-white
+                                         border border-border transition-colors cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleExtend}
+                              disabled={extendRemixLoading}
+                              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[12px] font-medium
+                                         text-white bg-primary-600 hover:bg-primary-700 transition-colors cursor-pointer
+                                         disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {extendRemixLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Repeat className="w-3 h-3" />}
+                              Extend
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Remix inline form */}
+                  <AnimatePresence>
+                    {showRemixForm && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="bg-surface-secondary rounded-xl border border-border-light p-4 space-y-3">
+                          <h4 className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
+                            <Shuffle className="w-3.5 h-3.5 text-accent-500" />
+                            Remix Song
+                          </h4>
+                          <input
+                            type="text"
+                            value={remixPrompt}
+                            onChange={(e) => setRemixPrompt(e.target.value)}
+                            placeholder="Optional: describe remix direction..."
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-white text-sm
+                                       placeholder:text-text-tertiary/60 focus:outline-none focus:ring-2
+                                       focus:ring-primary-200"
+                          />
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[11px] text-text-tertiary mb-1 block">Genre</label>
+                              <input
+                                type="text"
+                                value={remixGenre}
+                                onChange={(e) => setRemixGenre(e.target.value)}
+                                placeholder="e.g. Electronic"
+                                className="w-full px-3 py-1.5 rounded-lg border border-border bg-white text-[12px]
+                                           focus:outline-none focus:ring-2 focus:ring-primary-200"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] text-text-tertiary mb-1 block">Mood</label>
+                              <input
+                                type="text"
+                                value={remixMood}
+                                onChange={(e) => setRemixMood(e.target.value)}
+                                placeholder="e.g. Energetic"
+                                className="w-full px-3 py-1.5 rounded-lg border border-border bg-white text-[12px]
+                                           focus:outline-none focus:ring-2 focus:ring-primary-200"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] text-text-tertiary mb-1 block">Tempo (BPM)</label>
+                              <input
+                                type="number"
+                                value={remixTempo ?? ""}
+                                onChange={(e) => setRemixTempo(e.target.value ? Number(e.target.value) : undefined)}
+                                placeholder="120"
+                                className="w-full px-3 py-1.5 rounded-lg border border-border bg-white text-[12px]
+                                           focus:outline-none focus:ring-2 focus:ring-primary-200"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] text-text-tertiary mb-1 block">Key</label>
+                              <input
+                                type="text"
+                                value={remixKey}
+                                onChange={(e) => setRemixKey(e.target.value)}
+                                placeholder="e.g. C Minor"
+                                className="w-full px-3 py-1.5 rounded-lg border border-border bg-white text-[12px]
+                                           focus:outline-none focus:ring-2 focus:ring-primary-200"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => setShowRemixForm(false)}
+                              className="px-3 py-1.5 rounded-lg text-[12px] text-text-secondary hover:bg-white
+                                         border border-border transition-colors cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleRemix}
+                              disabled={extendRemixLoading}
+                              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[12px] font-medium
+                                         text-white bg-gradient-to-r from-primary-600 to-accent-500
+                                         hover:from-primary-700 hover:to-accent-600 transition-all cursor-pointer
+                                         disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {extendRemixLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shuffle className="w-3 h-3" />}
+                              Remix
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-red-200 shadow-md p-6 text-center">

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   Play,
   Trash2,
@@ -7,12 +7,19 @@ import {
   Search,
   ArrowUpDown,
   Sparkles,
+  Repeat,
+  Shuffle,
+  Heart,
+  Image,
+  Loader2,
+  GitBranch,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Generation } from "../types";
 import { api } from "../services/api";
 import { usePlayerStore } from "../stores/playerStore";
 import { useAppStore } from "../stores/appStore";
+import { useCreateStore } from "../stores/createStore";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -58,6 +65,71 @@ export default function HistoryPage() {
   const [sortBy, setSortBy] = useState<SortKey>("date");
   const play = usePlayerStore((s) => s.play);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
+  const createStore = useCreateStore();
+
+  const handleExtendFromHistory = useCallback((gen: Generation) => {
+    createStore.reset();
+    createStore.setPrompt(gen.prompt || "");
+    createStore.setTitle(gen.title ? `${gen.title} (Extended)` : "");
+    createStore.setLyrics(gen.lyrics || "");
+    if (gen.genre) {
+      const genres = gen.genre.split(",").map((g) => g.trim());
+      for (const g of genres) createStore.toggleGenre(g);
+    }
+    if (gen.mood) {
+      const moods = gen.mood.split(",").map((m) => m.trim());
+      for (const m of moods) createStore.toggleMood(m);
+    }
+    if (gen.tempo) createStore.setTempo(gen.tempo);
+    if (gen.musical_key) createStore.setMusicalKey(gen.musical_key);
+    setCurrentPage("create");
+  }, [createStore, setCurrentPage]);
+
+  const handleRemixFromHistory = useCallback((gen: Generation) => {
+    createStore.reset();
+    createStore.setPrompt(gen.prompt ? `Remix: ${gen.prompt}` : "");
+    createStore.setTitle(gen.title ? `${gen.title} (Remix)` : "");
+    if (gen.genre) {
+      const genres = gen.genre.split(",").map((g) => g.trim());
+      for (const g of genres) createStore.toggleGenre(g);
+    }
+    if (gen.mood) {
+      const moods = gen.mood.split(",").map((m) => m.trim());
+      for (const m of moods) createStore.toggleMood(m);
+    }
+    if (gen.tempo) createStore.setTempo(gen.tempo);
+    if (gen.musical_key) createStore.setMusicalKey(gen.musical_key);
+    createStore.setMode("custom");
+    setCurrentPage("create");
+  }, [createStore, setCurrentPage]);
+
+  const handleToggleLike = useCallback(async (gen: Generation) => {
+    try {
+      const res = await api.toggleLike(gen.id);
+      setGenerations((prev) =>
+        prev.map((g) => g.id === gen.id ? { ...g, is_liked: res.is_liked } : g)
+      );
+    } catch {
+      // Silent fail
+    }
+  }, []);
+
+  const handleRegenerateCover = useCallback(async (gen: Generation) => {
+    try {
+      const res = await api.regenerateCover({
+        generation_id: gen.id,
+        title: gen.title || undefined,
+        genre: gen.genre || undefined,
+        mood: gen.mood || undefined,
+        lyrics: gen.lyrics || undefined,
+      });
+      setGenerations((prev) =>
+        prev.map((g) => g.id === gen.id ? { ...g, cover_art_path: res.cover_art_path } : g)
+      );
+    } catch {
+      // Silent fail
+    }
+  }, []);
 
   useEffect(() => {
     loadGenerations();
@@ -207,6 +279,11 @@ export default function HistoryPage() {
                   index={i}
                   onPlay={() => play(gen)}
                   onDelete={() => handleDelete(gen.id)}
+                  onExtend={() => handleExtendFromHistory(gen)}
+                  onRemix={() => handleRemixFromHistory(gen)}
+                  onToggleLike={() => handleToggleLike(gen)}
+                  onRegenCover={() => handleRegenerateCover(gen)}
+                  allGenerations={generations}
                 />
               ))}
             </AnimatePresence>
@@ -223,15 +300,36 @@ function HistoryCard({
   index,
   onPlay,
   onDelete,
+  onExtend,
+  onRemix,
+  onToggleLike,
+  onRegenCover,
+  allGenerations,
 }: {
   gen: Generation;
   index: number;
   onPlay: () => void;
   onDelete: () => void;
+  onExtend: () => void;
+  onRemix: () => void;
+  onToggleLike: () => void;
+  onRegenCover: () => void;
+  allGenerations: Generation[];
 }) {
   const gradient = getGradient(gen.genre);
   const hasCover = !!gen.cover_art_path;
   const displayTitle = gen.title || gen.prompt.slice(0, 50);
+  const [coverLoading, setCoverLoading] = useState(false);
+
+  const parentGen = gen.parent_id
+    ? allGenerations.find((g) => g.id === gen.parent_id)
+    : null;
+
+  const handleRegenCover = async () => {
+    setCoverLoading(true);
+    await onRegenCover();
+    setCoverLoading(false);
+  };
 
   return (
     <motion.div
@@ -252,10 +350,15 @@ function HistoryCard({
           <img
             src={api.getCoverArtUrl(gen.cover_art_path!)}
             alt="Cover"
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover transition-opacity ${coverLoading ? "opacity-40" : ""}`}
           />
         ) : (
           <Music className="w-8 h-8 text-white/20" />
+        )}
+        {coverLoading && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-white" />
+          </div>
         )}
         {/* Play overlay */}
         <button
@@ -287,14 +390,40 @@ function HistoryCard({
         >
           {gen.status}
         </span>
+        {/* Like badge */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleLike(); }}
+          className="absolute top-2.5 left-2.5 p-1.5 rounded-full backdrop-blur-sm
+                     bg-black/10 hover:bg-black/20 transition-all cursor-pointer"
+        >
+          <Heart
+            className={`w-3.5 h-3.5 transition-colors ${
+              gen.is_liked
+                ? "fill-red-500 text-red-500"
+                : "text-white/80 hover:text-white"
+            }`}
+          />
+        </button>
       </div>
 
       {/* Card body */}
       <div className="p-4">
         <p className="text-[13px] font-semibold text-text-primary
-                      truncate mb-2 leading-tight">
+                      truncate mb-1 leading-tight">
           {displayTitle}
         </p>
+
+        {/* Lineage info */}
+        {gen.parent_id && gen.parent_type && (
+          <p className="text-[10px] text-text-tertiary flex items-center gap-1 mb-2">
+            <GitBranch className="w-2.5 h-2.5" />
+            {gen.parent_type === "extend" ? "Extended from" : "Remix of"}{" "}
+            <span className="font-medium text-primary-500">
+              {parentGen?.title || parentGen?.prompt?.slice(0, 20) || `#${gen.parent_id}`}
+            </span>
+          </p>
+        )}
+
         <div className="flex items-center gap-1.5 flex-wrap mb-3">
           {gen.genre && (
             <span className="text-[11px] px-2 py-0.5 rounded-full
@@ -314,19 +443,50 @@ function HistoryCard({
             {formatSeconds(gen.actual_duration)}
           </span>
         </div>
+
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-text-tertiary">
             {formatDate(gen.created_at)}
           </span>
-          <button
-            onClick={onDelete}
-            className="p-1.5 rounded-lg hover:bg-red-50
-                       transition-all cursor-pointer opacity-0
-                       group-hover:opacity-100"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-text-tertiary
-                               hover:text-red-500 transition-colors" />
-          </button>
+          {/* Action buttons row */}
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+            <button
+              onClick={onExtend}
+              title="Extend"
+              className="p-1.5 rounded-lg hover:bg-primary-50
+                         transition-all cursor-pointer"
+            >
+              <Repeat className="w-3.5 h-3.5 text-text-tertiary
+                                 hover:text-primary-600 transition-colors" />
+            </button>
+            <button
+              onClick={onRemix}
+              title="Remix"
+              className="p-1.5 rounded-lg hover:bg-accent-50
+                         transition-all cursor-pointer"
+            >
+              <Shuffle className="w-3.5 h-3.5 text-text-tertiary
+                                  hover:text-accent-500 transition-colors" />
+            </button>
+            <button
+              onClick={handleRegenCover}
+              title="Regenerate Cover"
+              className="p-1.5 rounded-lg hover:bg-blue-50
+                         transition-all cursor-pointer"
+            >
+              <Image className="w-3.5 h-3.5 text-text-tertiary
+                                hover:text-blue-500 transition-colors" />
+            </button>
+            <button
+              onClick={onDelete}
+              title="Delete"
+              className="p-1.5 rounded-lg hover:bg-red-50
+                         transition-all cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-text-tertiary
+                                 hover:text-red-500 transition-colors" />
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>

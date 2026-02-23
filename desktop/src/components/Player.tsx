@@ -101,7 +101,6 @@ export default function Player() {
     volume,
     currentTime,
     duration,
-    likedIds,
     setIsPlaying,
     setVolume,
     setCurrentTime,
@@ -198,7 +197,7 @@ export default function Player() {
 
   if (!currentTrack) return null;
 
-  const liked = likedIds.has(currentTrack.id);
+  const liked = !!currentTrack.is_liked;
   const gradient = getGenreGradient(currentTrack.genre);
   const hasCover = !!currentTrack.cover_art_path;
   const hasLyrics = !!currentTrack.lyrics;

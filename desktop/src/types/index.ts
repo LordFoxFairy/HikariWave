@@ -22,8 +22,10 @@ export interface Generation {
   language?: string;
   instrumental?: boolean;
   progress?: number;
+  progress_message?: string;
   parent_id?: number;
   parent_type?: string;
+  is_liked?: boolean;
   llm_provider?: string;
   music_provider: string;
   audio_path?: string;
@@ -48,6 +50,36 @@ export interface GenerateMusicRequest {
   language?: string;
   instrumental?: boolean;
   generate_cover?: boolean;
+}
+
+export interface ExtendRequest {
+  generation_id: number;
+  prompt?: string;
+  lyrics?: string;
+  duration?: number;
+}
+
+export interface RemixRequest {
+  generation_id: number;
+  genre?: string;
+  mood?: string;
+  tempo?: number;
+  musical_key?: string;
+  instruments?: string[];
+  prompt?: string;
+}
+
+export interface CoverArtRequest {
+  generation_id: number;
+  title?: string;
+  genre?: string;
+  mood?: string;
+  lyrics?: string;
+}
+
+export interface CoverArtResponse {
+  cover_art_path: string;
+  prompt_used: string;
 }
 
 export interface GenerateLyricsRequest {

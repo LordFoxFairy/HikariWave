@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Generation } from "../types";
+import { api } from "../services/api";
 
 interface PlayerState {
   currentTrack: Generation | null;
@@ -7,7 +8,6 @@ interface PlayerState {
   volume: number;
   currentTime: number;
   duration: number;
-  likedIds: Set<number>;
   setCurrentTrack: (track: Generation | null) => void;
   setIsPlaying: (playing: boolean) => void;
   setVolume: (volume: number) => void;
@@ -18,13 +18,12 @@ interface PlayerState {
   toggleLike: (id: number) => void;
 }
 
-export const usePlayerStore = create<PlayerState>((set) => ({
+export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentTrack: null,
   isPlaying: false,
   volume: 0.8,
   currentTime: 0,
   duration: 0,
-  likedIds: new Set<number>(),
   setCurrentTrack: (track) => set({ currentTrack: track }),
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setVolume: (volume) => set({ volume }),
@@ -34,11 +33,18 @@ export const usePlayerStore = create<PlayerState>((set) => ({
     set({ currentTrack: track, isPlaying: true }),
   stop: () =>
     set({ isPlaying: false, currentTime: 0 }),
-  toggleLike: (id) =>
-    set((s) => {
-      const next = new Set(s.likedIds);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return { likedIds: next };
-    }),
+  toggleLike: (id) => {
+    const track = get().currentTrack;
+    if (track && track.id === id) {
+      const newLiked = !track.is_liked;
+      set({ currentTrack: { ...track, is_liked: newLiked } });
+    }
+    api.toggleLike(id).catch(() => {
+      // Revert on failure
+      const t = get().currentTrack;
+      if (t && t.id === id) {
+        set({ currentTrack: { ...t, is_liked: !t.is_liked } });
+      }
+    });
+  },
 }));

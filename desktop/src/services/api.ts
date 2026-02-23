@@ -9,6 +9,10 @@ import type {
   StyleSuggestRequest,
   StyleSuggestion,
   TitleGenerateRequest,
+  ExtendRequest,
+  RemixRequest,
+  CoverArtRequest,
+  CoverArtResponse,
 } from "../types";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:8000/api/v1";
@@ -113,6 +117,33 @@ export const api = {
   getCoverArtUrl(coverPath: string) {
     const basename = coverPath.split("/").pop() || coverPath;
     return `${baseUrl}/cover/${basename}`;
+  },
+
+  extendSong(data: ExtendRequest) {
+    return request<{ task_id: string; status: string }>("/generate/extend", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  remixSong(data: RemixRequest) {
+    return request<{ task_id: string; status: string }>("/generate/remix", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  toggleLike(id: number) {
+    return request<{ is_liked: boolean }>(`/generations/${id}/toggle-like`, {
+      method: "POST",
+    });
+  },
+
+  regenerateCover(data: CoverArtRequest) {
+    return request<CoverArtResponse>("/generate/cover-art", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 
   healthCheck() {
