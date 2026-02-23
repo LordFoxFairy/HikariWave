@@ -1,0 +1,64 @@
+[project]
+name = "hikariwave"
+version = "0.1.0"
+description = "HikariWave - AI Music Generation Platform"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "python-dotenv>=1.0.0",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langchain-core>=0.3.0",
+    "celery[redis]>=5.4.0",
+    "redis>=5.2.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "aiosqlite>=0.20.0",
+    "alembic>=1.14.0",
+    "pyyaml>=6.0",
+    "websockets>=14.0",
+    "aiofiles>=24.0",
+    "httpx>=0.28.0",
+    "pydub>=0.25.0",
+    "soundfile>=0.12.0",
+]
+
+[project.optional-dependencies]
+gpu = [
+    "torch>=2.0.0",
+    "torchaudio>=2.0.0",
+    "transformers>=4.40.0",
+    "accelerate>=0.30.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
+
+[tool.hatch.envs.default.scripts]
+dev = "uvicorn backend.app.main:app --reload --port 8000"
+lint = "ruff check backend/"
+fmt = "ruff format backend/"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+src = ["backend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "N"]
+
+[tool.ruff.format]
+quote-style = "double"
