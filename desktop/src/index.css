@@ -60,3 +60,88 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+/* ---- Custom animations ---- */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-gentle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 25%,
+    rgba(139, 92, 246, 0.08) 50%,
+    transparent 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.animate-pulse-gentle {
+  animation: pulse-gentle 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Volume slider styling */
+input[type="range"].volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  outline: none;
+}
+
+input[type="range"].volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-primary-600);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s;
+}
+
+input[type="range"].volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Genre gradient helpers */
+.genre-gradient-electronic {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+.genre-gradient-rock {
+  background: linear-gradient(135deg, #dc2626, #f97316);
+}
+.genre-gradient-pop {
+  background: linear-gradient(135deg, #ec4899, #f472b6);
+}
+.genre-gradient-jazz {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+.genre-gradient-classical {
+  background: linear-gradient(135deg, #0891b2, #06b6d4);
+}
+.genre-gradient-hiphop {
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+}
+.genre-gradient-default {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}

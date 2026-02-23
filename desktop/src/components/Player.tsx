@@ -5,8 +5,12 @@ import {
   Square,
   Volume2,
   VolumeX,
+  Volume1,
   Download,
+  Heart,
+  Music,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import WaveSurfer from "wavesurfer.js";
 import { usePlayerStore } from "../stores/playerStore";
 import { api } from "../services/api";
@@ -15,6 +19,31 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+const genreColors: Record<string, string> = {
+  electronic: "from-indigo-500 to-violet-600",
+  rock: "from-red-500 to-orange-500",
+  pop: "from-pink-500 to-rose-400",
+  jazz: "from-amber-500 to-yellow-600",
+  classical: "from-cyan-600 to-teal-500",
+  hiphop: "from-violet-600 to-purple-400",
+  "hip-hop": "from-violet-600 to-purple-400",
+};
+
+function getGenreGradient(genre?: string): string {
+  if (!genre) return "from-primary-500 to-primary-700";
+  const key = genre.toLowerCase().replace(/[\s-_]/g, "");
+  for (const [k, v] of Object.entries(genreColors)) {
+    if (key.includes(k.replace("-", ""))) return v;
+  }
+  return "from-primary-500 to-primary-700";
+}
+
+function VolumeIcon({ volume }: { volume: number }) {
+  if (volume === 0) return <VolumeX className="w-4 h-4 text-text-tertiary" />;
+  if (volume < 0.5) return <Volume1 className="w-4 h-4 text-text-tertiary" />;
+  return <Volume2 className="w-4 h-4 text-text-tertiary" />;
 }
 
 export default function Player() {
@@ -27,11 +56,13 @@ export default function Player() {
     volume,
     currentTime,
     duration,
+    likedIds,
     setIsPlaying,
     setVolume,
     setCurrentTime,
     setDuration,
     stop,
+    toggleLike,
   } = usePlayerStore();
 
   const initWaveSurfer = useCallback(() => {
@@ -47,7 +78,7 @@ export default function Player() {
       barWidth: 2,
       barGap: 1.5,
       barRadius: 2,
-      height: 48,
+      height: 40,
       normalize: true,
     });
     ws.on("ready", () => setDuration(ws.getDuration()));
@@ -100,90 +131,117 @@ export default function Player() {
 
   if (!currentTrack) return null;
 
+  const liked = likedIds.has(currentTrack.id);
+  const gradient = getGenreGradient(currentTrack.genre);
+
   return (
-    <div
-      className="h-20 bg-white border-t border-border
-                 flex items-center px-5 gap-4"
-    >
-      {/* Track info */}
-      <div className="w-44 flex-shrink-0">
-        <p className="text-sm font-medium text-text-primary
-                      truncate">
-          {currentTrack.prompt.slice(0, 40)}
-        </p>
-        <p className="text-xs text-text-tertiary mt-0.5">
-          {currentTrack.genre || "Generated"}
-        </p>
-      </div>
-
-      {/* Controls */}
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={() => setIsPlaying(!isPlaying)}
-          className="w-9 h-9 rounded-full bg-primary-600
-                     hover:bg-primary-700 flex items-center
-                     justify-center transition-colors
-                     cursor-pointer"
-        >
-          {isPlaying ? (
-            <Pause className="w-4 h-4 text-white" />
-          ) : (
-            <Play className="w-4 h-4 text-white ml-0.5" />
-          )}
-        </button>
-        <button
-          onClick={handleStop}
-          className="w-8 h-8 rounded-full hover:bg-surface-tertiary
-                     flex items-center justify-center
-                     transition-colors cursor-pointer"
-        >
-          <Square className="w-3.5 h-3.5 text-text-secondary" />
-        </button>
-      </div>
-
-      {/* Time + Waveform */}
-      <span className="text-xs text-text-tertiary w-10
-                       text-right tabular-nums">
-        {formatTime(currentTime)}
-      </span>
-      <div ref={waveformRef} className="flex-1 mx-2" />
-      <span className="text-xs text-text-tertiary w-10
-                       tabular-nums">
-        {formatTime(duration)}
-      </span>
-
-      {/* Volume */}
-      <div className="flex items-center gap-1.5 w-28">
-        <button
-          onClick={() => setVolume(volume === 0 ? 0.8 : 0)}
-          className="cursor-pointer p-1 rounded
-                     hover:bg-surface-tertiary transition-colors"
-        >
-          {volume === 0 ? (
-            <VolumeX className="w-4 h-4 text-text-tertiary" />
-          ) : (
-            <Volume2 className="w-4 h-4 text-text-tertiary" />
-          )}
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={volume}
-          onChange={(e) => setVolume(Number(e.target.value))}
-          className="flex-1 h-1 accent-primary-600"
-        />
-      </div>
-
-      {/* Download */}
-      <button
-        onClick={handleDownload}
-        className="p-2 rounded-lg hover:bg-surface-tertiary
-                   transition-colors cursor-pointer"
+    <AnimatePresence>
+      <motion.div
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", duration: 0.5, bounce: 0.15 }}
+        className="h-[72px] bg-white border-t border-border
+                   flex items-center px-4 gap-3"
       >
-        <Download className="w-4 h-4 text-text-secondary" />
-      </button>
-    </div>
+        {/* Genre-colored thumbnail */}
+        <div
+          className={`w-11 h-11 rounded-lg bg-gradient-to-br ${gradient}
+                      flex items-center justify-center flex-shrink-0
+                      shadow-sm`}
+        >
+          <Music className="w-5 h-5 text-white/90" />
+        </div>
+
+        {/* Track info + heart */}
+        <div className="w-40 flex-shrink-0 min-w-0">
+          <p className="text-sm font-medium text-text-primary truncate">
+            {currentTrack.prompt.slice(0, 40)}
+          </p>
+          <p className="text-xs text-text-tertiary mt-0.5 truncate">
+            {currentTrack.genre || "Generated"}
+          </p>
+        </div>
+
+        {/* Heart / like */}
+        <button
+          onClick={() => toggleLike(currentTrack.id)}
+          className="p-1.5 rounded-full hover:bg-surface-tertiary
+                     transition-colors cursor-pointer flex-shrink-0"
+        >
+          <Heart
+            className={`w-4 h-4 transition-colors ${
+              liked
+                ? "fill-red-500 text-red-500"
+                : "text-text-tertiary"
+            }`}
+          />
+        </button>
+
+        {/* Controls */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setIsPlaying(!isPlaying)}
+            className="w-9 h-9 rounded-full bg-primary-600
+                       hover:bg-primary-700 flex items-center
+                       justify-center transition-colors
+                       cursor-pointer shadow-sm"
+          >
+            {isPlaying ? (
+              <Pause className="w-4 h-4 text-white" />
+            ) : (
+              <Play className="w-4 h-4 text-white ml-0.5" />
+            )}
+          </button>
+          <button
+            onClick={handleStop}
+            className="w-8 h-8 rounded-full hover:bg-surface-tertiary
+                       flex items-center justify-center
+                       transition-colors cursor-pointer"
+          >
+            <Square className="w-3.5 h-3.5 text-text-secondary" />
+          </button>
+        </div>
+
+        {/* Time + Waveform */}
+        <span className="text-[11px] text-text-tertiary w-9
+                         text-right tabular-nums flex-shrink-0">
+          {formatTime(currentTime)}
+        </span>
+        <div ref={waveformRef} className="flex-1 mx-1 min-w-0" />
+        <span className="text-[11px] text-text-tertiary w-9
+                         tabular-nums flex-shrink-0">
+          {formatTime(duration)}
+        </span>
+
+        {/* Volume */}
+        <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
+          <button
+            onClick={() => setVolume(volume === 0 ? 0.8 : 0)}
+            className="cursor-pointer p-1 rounded
+                       hover:bg-surface-tertiary transition-colors"
+          >
+            <VolumeIcon volume={volume} />
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volume}
+            onChange={(e) => setVolume(Number(e.target.value))}
+            className="flex-1 volume-slider"
+          />
+        </div>
+
+        {/* Download */}
+        <button
+          onClick={handleDownload}
+          className="p-2 rounded-lg hover:bg-surface-tertiary
+                     transition-colors cursor-pointer flex-shrink-0"
+        >
+          <Download className="w-4 h-4 text-text-secondary" />
+        </button>
+      </motion.div>
+    </AnimatePresence>
   );
 }
