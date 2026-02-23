@@ -12,14 +12,9 @@ dependencies = [
     "langchain>=0.3.0",
     "langchain-openai>=0.2.0",
     "langchain-core>=0.3.0",
-    "celery[redis]>=5.4.0",
-    "redis>=5.2.0",
     "sqlalchemy[asyncio]>=2.0.0",
     "aiosqlite>=0.20.0",
-    "alembic>=1.14.0",
     "pyyaml>=6.0",
-    "websockets>=14.0",
-    "aiofiles>=24.0",
     "httpx>=0.28.0",
     "pydub>=0.25.0",
     "soundfile>=0.12.0",
@@ -31,6 +26,7 @@ gpu = [
     "torch>=2.0.0",
     "torchaudio>=2.0.0",
     "transformers>=4.40.0",
+    "diffusers>=0.30.0",
     "accelerate>=0.30.0",
     "scipy>=1.12.0",
 ]
@@ -60,7 +56,55 @@ line-length = 88
 src = ["backend"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "N"]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "UP",     # pyupgrade
+    "N",      # pep8-naming
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "RET",    # flake8-return
+    "PTH",    # flake8-use-pathlib
+    "PERF",   # perflint
+    "RUF",    # ruff-specific rules
+    "PLC",    # pylint convention
+    "PLE",    # pylint errors
+    "PLW",    # pylint warnings
+    "TRY",    # tryceratops
+    "FLY",    # flynt (f-string conversion)
+    "S",      # flake8-bandit (security)
+    "T20",    # flake8-print
+    "ERA",    # eradicate (commented-out code)
+    "COM818", # trailing comma on bare tuple
+]
+ignore = [
+    "B008",    # Depends() / Query() in FastAPI defaults — standard pattern
+    "B904",    # raise-without-from — too noisy for re-raises in except blocks
+    "PLC0415", # import-not-at-top — intentional lazy imports for heavy deps
+    "TRY003",  # raise-vanilla-args — we use inline messages for clarity
+    "TRY400",  # error-instead-of-exception in logging — stylistic
+    "RET504",  # unnecessary-assign — sometimes aids readability
+    "S110",    # try-except-pass — intentional in cleanup code
+    "SIM105",  # use-contextlib-suppress — explicit try/except is clearer
+    "SIM108",  # use-ternary — multi-line if/else is often more readable
+    "PLW2901", # redefined-loop-name — common pattern in transforms
+]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/app/api/endpoints/*.py" = [
+    "S113",    # request-without-timeout — FastAPI handles timeouts
+]
+"backend/app/providers/music/huggingface.py" = [
+    "TRY300",  # complex multi-branch try blocks with early returns
+]
+"backend/tests/**" = [
+    "S101",    # assert in tests is expected
+]
 
 [tool.ruff.format]
 quote-style = "double"
