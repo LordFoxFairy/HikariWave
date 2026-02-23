@@ -11,13 +11,12 @@ class MusicProviderConfig(BaseModel):
         default="facebook/musicgen-small",
         description="HuggingFace model ID (e.g. facebook/musicgen-small)",
     )
-    cache_dir: str | None = Field(
-        default=None,
-        description="Custom cache directory for downloaded model weights",
+    backend_type: str = Field(
+        default="auto",
+        description="Model backend: 'auto', 'transformers', or 'diffusers'",
     )
     device: str = "cpu"
     output_format: str = "wav"
-    sample_rate: int = 32000
     max_duration: int = Field(default=120, description="Max duration in seconds")
 
 
@@ -36,6 +35,7 @@ class MusicGenerationRequest(BaseModel):
 
 class MusicGenerationResponse(BaseModel):
     audio_path: str
+    audio_data: bytes | None = None
     duration: float
     sample_rate: int
     format: str
@@ -52,7 +52,7 @@ class BaseMusicProvider(ABC):
 
     @abstractmethod
     async def generate(
-        self, request: MusicGenerationRequest
+            self, request: MusicGenerationRequest
     ) -> MusicGenerationResponse: ...
 
     @abstractmethod

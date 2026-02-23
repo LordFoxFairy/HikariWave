@@ -1,4 +1,5 @@
 import logging
+import uuid
 from pathlib import Path
 
 from backend.app.core.settings import settings
@@ -11,7 +12,7 @@ class StorageService:
         self.base_dir = Path(settings.storage_dir)
         self.audio_dir = self.base_dir / settings.audio_subdir
         self.audio_dir.mkdir(parents=True, exist_ok=True)
-        self.covers_dir = self.base_dir / "covers"
+        self.covers_dir = self.base_dir / settings.covers_subdir
         self.covers_dir.mkdir(parents=True, exist_ok=True)
 
     def get_audio_path(self, filename: str) -> Path | None:
@@ -42,21 +43,13 @@ class StorageService:
             return True
         return False
 
-    def get_audio_dir(self) -> Path:
-        return self.audio_dir
-
-    def get_covers_dir(self) -> Path:
-        return self.covers_dir
-
-    def disk_usage(self) -> dict:
-        total_size = sum(
-            f.stat().st_size for f in self.base_dir.rglob("*") if f.is_file()
-        )
-        return {
-            "directory": str(self.base_dir),
-            "total_bytes": total_size,
-            "total_mb": round(total_size / (1024 * 1024), 2),
-        }
+    def save_audio(self, data: bytes, fmt: str = "wav") -> str:
+        """Write raw audio bytes to disk and return the generated filename."""
+        filename = f"{uuid.uuid4().hex}.{fmt}"
+        path = self.audio_dir / filename
+        path.write_bytes(data)
+        logger.info("Saved audio file: %s (%d bytes)", filename, len(data))
+        return filename
 
 
 storage_service = StorageService()
