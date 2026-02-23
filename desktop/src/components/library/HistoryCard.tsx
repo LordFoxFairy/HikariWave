@@ -1,0 +1,209 @@
+import {useState} from "react";
+import {Clock, GitBranch, Image, Loader2, Music, Play, Repeat, Shuffle, Star, Trash2,} from "lucide-react";
+import {motion} from "framer-motion";
+import type {Generation} from "../../types";
+import {api} from "../../services/api";
+import {formatDate, formatSeconds, getGradient} from "../../utils/format";
+
+interface HistoryCardProps {
+    gen: Generation;
+    index: number;
+    onPlay: () => void;
+    onDelete: () => void;
+    onExtend: () => void;
+    onRemix: () => void;
+    onToggleLike: () => void;
+    onRegenCover: () => void;
+    allGenerations: Generation[];
+}
+
+export default function HistoryCard({
+                                        gen,
+                                        index,
+                                        onPlay,
+                                        onDelete,
+                                        onExtend,
+                                        onRemix,
+                                        onToggleLike,
+                                        onRegenCover,
+                                        allGenerations,
+                                    }: HistoryCardProps) {
+    const gradient = getGradient(gen.genre);
+    const hasCover = !!gen.cover_art_path;
+    const displayTitle = gen.title || gen.prompt.slice(0, 50);
+    const [coverLoading, setCoverLoading] = useState(false);
+
+    const parentGen = gen.parent_id
+        ? allGenerations.find((g) => g.id === gen.parent_id)
+        : null;
+
+    const handleRegenCover = async () => {
+        setCoverLoading(true);
+        await onRegenCover();
+        setCoverLoading(false);
+    };
+
+    return (
+        <motion.div
+            initial={{opacity: 0, y: 12}}
+            animate={{opacity: 1, y: 0}}
+            exit={{opacity: 0, scale: 0.95}}
+            transition={{delay: index * 0.04}}
+            className="bg-white rounded-2xl border border-border shadow-sm
+                 overflow-hidden hover:shadow-md transition-shadow
+                 group"
+        >
+            {/* Cover header */}
+            <div
+                className={`h-24 ${hasCover ? "" : `bg-gradient-to-br ${gradient}`}
+                    flex items-center justify-center relative overflow-hidden`}
+            >
+                {hasCover ? (
+                    <img
+                        src={api.getCoverArtUrl(gen.cover_art_path!)}
+                        alt="Cover"
+                        className={`w-full h-full object-cover transition-opacity ${coverLoading ? "opacity-40" : ""}`}
+                    />
+                ) : (
+                    <Music className="w-8 h-8 text-white/20"/>
+                )}
+                {coverLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="w-5 h-5 animate-spin text-white"/>
+                    </div>
+                )}
+                {/* Play overlay */}
+                <button
+                    onClick={onPlay}
+                    disabled={gen.status !== "completed"}
+                    className="absolute inset-0 flex items-center justify-center
+                     bg-black/0 group-hover:bg-black/25
+                     transition-colors cursor-pointer
+                     disabled:cursor-not-allowed"
+                >
+                    <div className="w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm
+                          flex items-center justify-center
+                          opacity-0 group-hover:opacity-100
+                          transition-[transform,opacity] will-change-transform shadow-lg
+                          scale-75 group-hover:scale-100">
+                        <Play className="w-5 h-5 text-primary-600 ml-0.5"/>
+                    </div>
+                </button>
+                {/* Status badge */}
+                <span
+                    className={`absolute top-2.5 right-2.5 text-[10px] px-2 py-0.5
+                      rounded-full font-semibold backdrop-blur-sm ${
+                        gen.status === "completed"
+                            ? "bg-white/25 text-white"
+                            : gen.status === "failed"
+                                ? "bg-red-500/30 text-white"
+                                : "bg-amber-500/30 text-white"
+                    }`}
+                >
+          {gen.status}
+        </span>
+                {/* Like badge */}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleLike();
+                    }}
+                    className="absolute top-2.5 left-2.5 p-1.5 rounded-full backdrop-blur-sm
+                     bg-black/10 hover:bg-black/20 transition-colors cursor-pointer"
+                >
+                    <Star
+                        className={`w-3.5 h-3.5 transition-colors ${
+                            gen.is_liked
+                                ? "fill-amber-500 text-amber-500"
+                                : "text-white/80 hover:text-white"
+                        }`}
+                    />
+                </button>
+            </div>
+
+            {/* Card body */}
+            <div className="p-4">
+                <p className="text-[13px] font-semibold text-text-primary
+                      truncate mb-1 leading-tight">
+                    {displayTitle}
+                </p>
+
+                {/* Lineage info */}
+                {gen.parent_id && gen.parent_type && (
+                    <p className="text-[10px] text-text-tertiary flex items-center gap-1 mb-2">
+                        <GitBranch className="w-2.5 h-2.5"/>
+                        {gen.parent_type === "extend" ? "Extended from" : "Remix of"}{" "}
+                        <span className="font-medium text-primary-500">
+              {parentGen?.title || parentGen?.prompt?.slice(0, 20) || `#${gen.parent_id}`}
+            </span>
+                    </p>
+                )}
+
+                <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                    {gen.genre && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full
+                             bg-primary-50 text-primary-600 font-medium">
+              {gen.genre}
+            </span>
+                    )}
+                    {gen.mood && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full
+                             bg-accent-50 text-accent-500 font-medium">
+              {gen.mood}
+            </span>
+                    )}
+                    <span className="flex items-center gap-1 text-[11px]
+                           text-text-tertiary ml-auto tabular-nums">
+            <Clock className="w-3 h-3"/>
+                        {formatSeconds(gen.actual_duration)}
+          </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+          <span className="text-[11px] text-text-tertiary">
+            {formatDate(gen.created_at)}
+          </span>
+                    {/* Action buttons row */}
+                    <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <button
+                            onClick={onExtend}
+                            title="Extend"
+                            className="p-1.5 rounded-lg hover:bg-primary-50
+                         transition-colors cursor-pointer"
+                        >
+                            <Repeat className="w-3.5 h-3.5 text-text-tertiary
+                                 hover:text-primary-600 transition-colors"/>
+                        </button>
+                        <button
+                            onClick={onRemix}
+                            title="Remix"
+                            className="p-1.5 rounded-lg hover:bg-accent-50
+                         transition-colors cursor-pointer"
+                        >
+                            <Shuffle className="w-3.5 h-3.5 text-text-tertiary
+                                  hover:text-accent-500 transition-colors"/>
+                        </button>
+                        <button
+                            onClick={handleRegenCover}
+                            title="Regenerate Cover"
+                            className="p-1.5 rounded-lg hover:bg-blue-50
+                         transition-colors cursor-pointer"
+                        >
+                            <Image className="w-3.5 h-3.5 text-text-tertiary
+                                hover:text-blue-500 transition-colors"/>
+                        </button>
+                        <button
+                            onClick={onDelete}
+                            title="Delete"
+                            className="p-1.5 rounded-lg hover:bg-red-50
+                         transition-colors cursor-pointer"
+                        >
+                            <Trash2 className="w-3.5 h-3.5 text-text-tertiary
+                                 hover:text-red-500 transition-colors"/>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    );
+}
