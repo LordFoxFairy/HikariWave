@@ -9,7 +9,7 @@ import {
   Sparkles,
   Repeat,
   Shuffle,
-  Heart,
+  Star,
   Image,
   Loader2,
   GitBranch,
@@ -20,53 +20,23 @@ import { api } from "../services/api";
 import { usePlayerStore } from "../stores/playerStore";
 import { useAppStore } from "../stores/appStore";
 import { useCreateStore } from "../stores/createStore";
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatSeconds(sec?: number): string {
-  if (!sec) return "--";
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-const genreGradients: Record<string, string> = {
-  electronic: "from-indigo-500 to-violet-600",
-  rock: "from-red-500 to-orange-500",
-  pop: "from-pink-500 to-rose-400",
-  jazz: "from-amber-500 to-yellow-600",
-  classical: "from-cyan-600 to-teal-500",
-  hiphop: "from-violet-600 to-purple-400",
-};
-
-function getGradient(genre?: string): string {
-  if (!genre) return "from-primary-500 to-primary-700";
-  const key = genre.toLowerCase().replace(/[\s-_]/g, "");
-  for (const [k, v] of Object.entries(genreGradients)) {
-    if (key.includes(k)) return v;
-  }
-  return "from-primary-500 to-primary-700";
-}
+import { useLibraryStore } from "../stores/libraryStore";
+import { formatDate, formatSeconds, getGradient } from "../utils/format";
 
 type SortKey = "date" | "name";
 
 export default function HistoryPage() {
-  const [generations, setGenerations] = useState<Generation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const store = useLibraryStore();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("date");
   const play = usePlayerStore((s) => s.play);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const createStore = useCreateStore();
+
+  useEffect(() => {
+    store.fetchGenerations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleExtendFromHistory = useCallback((gen: Generation) => {
     createStore.reset();
@@ -104,17 +74,6 @@ export default function HistoryPage() {
     setCurrentPage("create");
   }, [createStore, setCurrentPage]);
 
-  const handleToggleLike = useCallback(async (gen: Generation) => {
-    try {
-      const res = await api.toggleLike(gen.id);
-      setGenerations((prev) =>
-        prev.map((g) => g.id === gen.id ? { ...g, is_liked: res.is_liked } : g)
-      );
-    } catch {
-      // Silent fail
-    }
-  }, []);
-
   const handleRegenerateCover = useCallback(async (gen: Generation) => {
     try {
       const res = await api.regenerateCover({
@@ -124,42 +83,16 @@ export default function HistoryPage() {
         mood: gen.mood || undefined,
         lyrics: gen.lyrics || undefined,
       });
-      setGenerations((prev) =>
-        prev.map((g) => g.id === gen.id ? { ...g, cover_art_path: res.cover_art_path } : g)
-      );
+      store.updateGeneration(gen.id, {
+        cover_art_path: res.cover_art_path,
+      });
     } catch {
       // Silent fail
     }
-  }, []);
-
-  const loadGenerations = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await api.getGenerations();
-      setGenerations(data.items);
-    } catch {
-      setError("Could not load tracks. Check that the backend is running.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadGenerations();
-  }, [loadGenerations]);
-
-  const handleDelete = async (id: number) => {
-    try {
-      await api.deleteGeneration(id);
-      setGenerations((g) => g.filter((x) => x.id !== id));
-    } catch {
-      // Silent fail
-    }
-  };
+  }, [store]);
 
   const filtered = useMemo(() => {
-    let list = generations;
+    let list = store.generations;
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -182,7 +115,7 @@ export default function HistoryPage() {
       );
     });
     return list;
-  }, [generations, search, sortBy]);
+  }, [store.generations, search, sortBy]);
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -198,7 +131,7 @@ export default function HistoryPage() {
             </p>
           </div>
           <span className="text-xs text-text-tertiary tabular-nums">
-            {generations.length} track{generations.length !== 1 && "s"}
+            {store.generations.length} track{store.generations.length !== 1 && "s"}
           </span>
         </div>
 
@@ -233,7 +166,7 @@ export default function HistoryPage() {
           </button>
         </div>
 
-        {loading ? (
+        {store.loading && store.generations.length === 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden animate-pulse">
@@ -249,7 +182,7 @@ export default function HistoryPage() {
               </div>
             ))}
           </div>
-        ) : error ? (
+        ) : store.error ? (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -264,10 +197,10 @@ export default function HistoryPage() {
               Connection Error
             </p>
             <p className="text-text-tertiary text-[13px] mb-5">
-              {error}
+              {store.error}
             </p>
             <button
-              onClick={loadGenerations}
+              onClick={() => store.fetchGenerations()}
               className="inline-flex items-center gap-2 px-5 py-2.5
                          rounded-xl bg-primary-600 text-white
                          text-sm font-medium hover:bg-primary-700
@@ -317,12 +250,12 @@ export default function HistoryPage() {
                   gen={gen}
                   index={i}
                   onPlay={() => play(gen)}
-                  onDelete={() => handleDelete(gen.id)}
+                  onDelete={() => store.deleteGeneration(gen.id)}
                   onExtend={() => handleExtendFromHistory(gen)}
                   onRemix={() => handleRemixFromHistory(gen)}
-                  onToggleLike={() => handleToggleLike(gen)}
+                  onToggleLike={() => store.toggleLike(gen.id)}
                   onRegenCover={() => handleRegenerateCover(gen)}
-                  allGenerations={generations}
+                  allGenerations={store.generations}
                 />
               ))}
             </AnimatePresence>
@@ -437,10 +370,10 @@ function HistoryCard({
           className="absolute top-2.5 left-2.5 p-1.5 rounded-full backdrop-blur-sm
                      bg-black/10 hover:bg-black/20 transition-all cursor-pointer"
         >
-          <Heart
+          <Star
             className={`w-3.5 h-3.5 transition-colors ${
               gen.is_liked
-                ? "fill-red-500 text-red-500"
+                ? "fill-amber-500 text-amber-500"
                 : "text-white/80 hover:text-white"
             }`}
           />

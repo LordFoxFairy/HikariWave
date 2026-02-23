@@ -3,9 +3,6 @@ import type {
   GenerateMusicRequest,
   GenerateLyricsRequest,
   GenerateLyricsResponse,
-  EnhancePromptRequest,
-  EnhancePromptResponse,
-  ProviderInfo,
   StyleSuggestRequest,
   StyleSuggestion,
   TitleGenerateRequest,
@@ -30,10 +27,6 @@ let baseUrl = DEFAULT_BASE_URL;
 
 export function setBaseUrl(url: string) {
   baseUrl = url.replace(/\/+$/, "");
-}
-
-export function getBaseUrl(): string {
-  return baseUrl;
 }
 
 async function request<T>(
@@ -65,13 +58,6 @@ export const api = {
 
   generateLyrics(data: GenerateLyricsRequest) {
     return request<GenerateLyricsResponse>("/generate/lyrics", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  },
-
-  enhancePrompt(data: EnhancePromptRequest) {
-    return request<EnhancePromptResponse>("/generate/enhance-prompt", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -125,18 +111,8 @@ export const api = {
     return data;
   },
 
-  getGeneration(id: number) {
-    return request<Generation>(`/generations/${id}`);
-  },
-
   deleteGeneration(id: number) {
     return request<void>(`/generations/${id}`, { method: "DELETE" });
-  },
-
-  async getProviders(type: "llm" | "music") {
-    // Backend returns {providers: ProviderInfo[]}
-    const data = await request<{ providers: ProviderInfo[] }>(`/providers/${type}`);
-    return data.providers;
   },
 
   getAudioUrl(audioPath: string) {
@@ -232,10 +208,6 @@ export const api = {
     return request<HFSearchResponse>(`/marketplace/search?${params}`);
   },
 
-  getModelInfo(repoId: string) {
-    return request<HFModelInfo>(`/marketplace/model/${repoId}`);
-  },
-
   downloadModel(repoId: string) {
     return request<DownloadProgress>("/marketplace/download", {
       method: "POST",
@@ -245,10 +217,6 @@ export const api = {
 
   getDownloadProgress() {
     return request<DownloadProgress[]>("/marketplace/downloads");
-  },
-
-  getDownloadById(downloadId: string) {
-    return request<DownloadProgress>(`/marketplace/downloads/${downloadId}`);
   },
 
   getCachedModels() {

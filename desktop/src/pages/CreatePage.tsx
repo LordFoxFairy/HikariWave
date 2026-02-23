@@ -25,6 +25,7 @@ import {
   Shuffle,
   Image,
   GitBranch,
+  ChevronDown,
 } from "lucide-react";
 import type { Generation, ExtendRequest, RemixRequest } from "../types";
 import { useCreateStore } from "../stores/createStore";
@@ -760,17 +761,12 @@ export default function CreatePage() {
               {/* Language selector */}
               <div className="flex items-center gap-2">
                 <Globe className="w-3.5 h-3.5 text-text-tertiary" />
-                <select
+                <CustomSelect
                   value={store.language}
-                  onChange={(e) => store.setLanguage(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg border border-border bg-white
-                             text-xs text-text-primary focus:outline-none focus:ring-2
-                             focus:ring-primary-200 cursor-pointer"
-                >
-                  {LANGUAGE_OPTIONS.map((l) => (
-                    <option key={l} value={l}>{l}</option>
-                  ))}
-                </select>
+                  onChange={(v) => store.setLanguage(v)}
+                  options={LANGUAGE_OPTIONS}
+                  compact
+                />
               </div>
             </div>
           )}
@@ -937,17 +933,11 @@ export default function CreatePage() {
               </label>
               <AiSuggestBtn field="key" loading={!!store.aiSuggesting["key"]} onClick={() => handleSuggestStyle("key")} />
             </div>
-            <select
+            <CustomSelect
               value={store.musicalKey}
-              onChange={(e) => store.setMusicalKey(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface-secondary
-                         text-sm text-text-primary focus:outline-none focus:ring-2
-                         focus:ring-primary-200 cursor-pointer"
-            >
-              {KEY_OPTIONS.map((k) => (
-                <option key={k} value={k}>{k}</option>
-              ))}
-            </select>
+              onChange={(v) => store.setMusicalKey(v)}
+              options={KEY_OPTIONS}
+            />
           </div>
 
           {/* Divider */}
@@ -1412,6 +1402,94 @@ export default function CreatePage() {
         {/* Bottom spacer for player clearance */}
         <div className="h-20" />
       </div>
+    </div>
+  );
+}
+
+/* -- Custom styled dropdown to replace native <select> -- */
+function CustomSelect({
+  value,
+  onChange,
+  options,
+  placeholder = "Select...",
+  className = "",
+  compact = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder?: string;
+  className?: string;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className={`relative ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center justify-between gap-2 cursor-pointer transition-all
+          ${compact
+            ? "px-2.5 py-1.5 rounded-lg border text-xs"
+            : "w-full px-4 py-2.5 rounded-xl border text-sm"
+          }
+          ${open
+            ? "border-primary-300 ring-2 ring-primary-200 bg-white"
+            : compact
+              ? "border-border bg-white hover:border-primary-200"
+              : "border-border bg-surface-secondary hover:border-primary-200"
+          }
+          text-text-primary`}
+      >
+        <span className={value ? "" : "text-text-tertiary"}>{value || placeholder}</span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 text-text-tertiary transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className={`absolute z-50 mt-1.5 bg-white rounded-xl border border-border shadow-lg
+                        max-h-48 overflow-y-auto py-1
+                        ${compact ? "min-w-[140px] left-0" : "w-full"}`}
+          >
+            {options.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  onChange(opt);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors mx-0
+                  ${opt === value
+                    ? "bg-primary-50 text-primary-700 font-medium"
+                    : "text-text-primary hover:bg-surface-secondary"
+                  }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

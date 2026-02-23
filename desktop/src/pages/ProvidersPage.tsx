@@ -24,7 +24,6 @@ import { useProviderStore } from "../stores/providerStore";
 import { api } from "../services/api";
 import type {
   ProviderTab,
-  ProviderInfo,
   LLMProviderEntry,
   LLMProviderType,
   LLMConfig,

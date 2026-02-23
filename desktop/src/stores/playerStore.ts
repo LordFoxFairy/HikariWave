@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { Generation } from "../types";
-import { api } from "../services/api";
 import { useLibraryStore } from "./libraryStore";
 
 interface PlayerState {

@@ -7,7 +7,7 @@ import {
   VolumeX,
   Volume1,
   Download,
-  Heart,
+  Star,
   Music,
   FileText,
   ChevronDown,
@@ -18,31 +18,7 @@ import WaveSurfer from "wavesurfer.js";
 import { usePlayerStore } from "../stores/playerStore";
 import { api } from "../services/api";
 import LyricsPanel from "./LyricsPanel";
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-const genreColors: Record<string, string> = {
-  electronic: "from-indigo-500 to-violet-600",
-  rock: "from-red-500 to-orange-500",
-  pop: "from-pink-500 to-rose-400",
-  jazz: "from-amber-500 to-yellow-600",
-  classical: "from-cyan-600 to-teal-500",
-  hiphop: "from-violet-600 to-purple-400",
-  "hip-hop": "from-violet-600 to-purple-400",
-};
-
-function getGenreGradient(genre?: string): string {
-  if (!genre) return "from-primary-500 to-primary-700";
-  const key = genre.toLowerCase().replace(/[\s-_]/g, "");
-  for (const [k, v] of Object.entries(genreColors)) {
-    if (key.includes(k.replace("-", ""))) return v;
-  }
-  return "from-primary-500 to-primary-700";
-}
+import { getGradient, formatSeconds } from "../utils/format";
 
 function VolumeIcon({ volume }: { volume: number }) {
   if (volume === 0) return <VolumeX className="w-4 h-4 text-text-tertiary" />;
@@ -203,7 +179,7 @@ export default function Player() {
   if (!currentTrack) return null;
 
   const liked = !!currentTrack.is_liked;
-  const gradient = getGenreGradient(currentTrack.genre);
+  const gradient = getGradient(currentTrack.genre);
   const hasCover = !!currentTrack.cover_art_path;
   const hasLyrics = !!currentTrack.lyrics;
   const displayTitle = currentTrack.title || currentTrack.prompt.slice(0, 40);
@@ -274,17 +250,17 @@ export default function Player() {
               </p>
             </div>
 
-            {/* Heart */}
+            {/* Star */}
             <button
               onClick={() => toggleLike(currentTrack.id)}
               className="p-1.5 rounded-full hover:bg-surface-tertiary
                          transition-colors cursor-pointer flex-shrink-0"
             >
-              <Heart
+              <Star
                 className={`w-4 h-4 transition-colors ${
                   liked
-                    ? "fill-red-500 text-red-500"
-                    : "text-text-tertiary hover:text-text-secondary"
+                    ? "fill-amber-500 text-amber-500"
+                    : "text-text-tertiary hover:text-amber-500"
                 }`}
               />
             </button>
@@ -333,12 +309,12 @@ export default function Player() {
             {/* Time + Waveform */}
             <span className="text-[11px] text-text-tertiary w-9
                              text-right tabular-nums flex-shrink-0">
-              {formatTime(currentTime)}
+              {formatSeconds(currentTime)}
             </span>
             <div ref={waveformRef} className="flex-1 mx-1 min-w-0" />
             <span className="text-[11px] text-text-tertiary w-9
                              tabular-nums flex-shrink-0">
-              {formatTime(duration)}
+              {formatSeconds(duration)}
             </span>
 
             {/* Volume */}

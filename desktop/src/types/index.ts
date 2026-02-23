@@ -126,16 +126,6 @@ export interface TitleGenerateRequest {
   mood?: string;
 }
 
-export interface TaskStatus {
-  id: number;
-  task_id: string;
-  status: GenerationStatus;
-  progress?: number;
-  prompt: string;
-  audio_path?: string;
-  error_message?: string;
-}
-
 export interface ProviderInfo {
   name: string;
   provider_type: string;
@@ -144,24 +134,7 @@ export interface ProviderInfo {
   is_healthy?: boolean;
 }
 
-export interface MusicConfig {
-  genres: string[];
-  moods: string[];
-  duration: number;
-  tempo: number;
-  musicalKey: string;
-  instruments: string[];
-  language: string;
-  instrumental: boolean;
-}
-
 export type CreateMode = "smart" | "custom";
-
-export interface AppSettings {
-  backendUrl: string;
-  llmProvider: string;
-  musicProvider: string;
-}
 
 export type PageId =
   | "create"

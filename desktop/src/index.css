@@ -152,29 +152,6 @@ input[type="range"]:not(.volume-slider)::-webkit-slider-thumb:hover {
   box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
 }
 
-/* ---- Genre gradient helpers ---- */
-.genre-gradient-electronic {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-}
-.genre-gradient-rock {
-  background: linear-gradient(135deg, #dc2626, #f97316);
-}
-.genre-gradient-pop {
-  background: linear-gradient(135deg, #ec4899, #f472b6);
-}
-.genre-gradient-jazz {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-}
-.genre-gradient-classical {
-  background: linear-gradient(135deg, #0891b2, #06b6d4);
-}
-.genre-gradient-hiphop {
-  background: linear-gradient(135deg, #7c3aed, #a78bfa);
-}
-.genre-gradient-default {
-  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
-}
-
 /* ---- Lyrics panel scroll area ---- */
 .lyrics-scroll::-webkit-scrollbar {
   width: 4px;

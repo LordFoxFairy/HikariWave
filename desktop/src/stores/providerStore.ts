@@ -14,7 +14,6 @@ interface ProviderState {
   // Marketplace search
   searchQuery: string;
   searchResults: HFModelInfo[];
-  searchTotal: number;
   searchLoading: boolean;
   setSearchQuery: (q: string) => void;
   searchModels: (query: string, pipelineTag: string) => Promise<void>;
@@ -36,7 +35,6 @@ export const useProviderStore = create<ProviderState>((set) => ({
 
   searchQuery: "",
   searchResults: [],
-  searchTotal: 0,
   searchLoading: false,
   setSearchQuery: (q) => set({ searchQuery: q }),
 
@@ -44,12 +42,9 @@ export const useProviderStore = create<ProviderState>((set) => ({
     set({ searchLoading: true });
     try {
       const res = await api.searchModels(query, pipelineTag);
-      set({
-        searchResults: res.models,
-        searchTotal: res.total,
-      });
+      set({ searchResults: res.models });
     } catch {
-      set({ searchResults: [], searchTotal: 0 });
+      set({ searchResults: [] });
     } finally {
       set({ searchLoading: false });
     }
