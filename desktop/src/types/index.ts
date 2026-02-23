@@ -1,238 +1,218 @@
 export type GenerationStatus =
-  | "pending"
-  | "processing"
-  | "completed"
-  | "failed";
+    | "pending"
+    | "processing"
+    | "completed"
+    | "failed";
 
 export interface Generation {
-  id: number;
-  task_id: string;
-  status: GenerationStatus;
-  prompt: string;
-  enhanced_prompt?: string;
-  lyrics?: string;
-  genre?: string;
-  mood?: string;
-  duration: number;
-  title?: string;
-  cover_art_path?: string;
-  tempo?: number;
-  musical_key?: string;
-  instruments?: string[];
-  language?: string;
-  instrumental?: boolean;
-  progress?: number;
-  progress_message?: string;
-  parent_id?: number;
-  parent_type?: string;
-  is_liked?: boolean;
-  llm_provider?: string;
-  music_provider: string;
-  audio_path?: string;
-  audio_format: string;
-  actual_duration?: number;
-  generation_params: Record<string, unknown>;
-  error_message?: string;
-  created_at: string;
-  completed_at?: string;
+    id: number;
+    task_id: string;
+    status: GenerationStatus;
+    prompt: string;
+    enhanced_prompt?: string;
+    lyrics?: string;
+    genre?: string;
+    mood?: string;
+    duration: number;
+    title?: string;
+    cover_art_path?: string;
+    tempo?: number;
+    musical_key?: string;
+    instruments?: string[];
+    language?: string;
+    instrumental?: boolean;
+    progress?: number;
+    progress_message?: string;
+    parent_id?: number;
+    parent_type?: string;
+    is_liked?: boolean;
+    llm_provider?: string;
+    music_provider: string;
+    audio_path?: string;
+    audio_format: string;
+    actual_duration?: number;
+    generation_params?: Record<string, unknown>;
+    error_message?: string;
+    created_at: string;
+    completed_at?: string;
 }
 
 export interface GenerateMusicRequest {
-  prompt: string;
-  lyrics?: string;
-  genre?: string;
-  mood?: string;
-  duration?: number;
-  title?: string;
-  tempo?: number;
-  musical_key?: string;
-  instruments?: string[];
-  language?: string;
-  instrumental?: boolean;
-  generate_cover?: boolean;
+    prompt: string;
+    lyrics?: string;
+    genre?: string;
+    mood?: string;
+    duration?: number;
+    title?: string;
+    tempo?: number;
+    musical_key?: string;
+    instruments?: string[];
+    language?: string;
+    instrumental?: boolean;
+    generate_cover?: boolean;
 }
 
 export interface ExtendRequest {
-  generation_id: number;
-  prompt?: string;
-  lyrics?: string;
-  duration?: number;
+    generation_id: number;
+    prompt?: string;
+    lyrics?: string;
+    duration?: number;
 }
 
 export interface RemixRequest {
-  generation_id: number;
-  genre?: string;
-  mood?: string;
-  tempo?: number;
-  musical_key?: string;
-  instruments?: string[];
-  prompt?: string;
+    generation_id: number;
+    genre?: string;
+    mood?: string;
+    tempo?: number;
+    musical_key?: string;
+    instruments?: string[];
+    prompt?: string;
 }
 
 export interface CoverArtRequest {
-  generation_id: number;
-  title?: string;
-  genre?: string;
-  mood?: string;
-  lyrics?: string;
+    generation_id: number;
+    title?: string;
+    genre?: string;
+    mood?: string;
+    lyrics?: string;
 }
 
 export interface CoverArtResponse {
-  cover_art_path: string;
-  prompt_used: string;
+    cover_art_path: string;
+    prompt_used: string;
 }
 
 export interface GenerateLyricsRequest {
-  prompt: string;
-  genre?: string;
-  mood?: string;
-  language?: string;
+    prompt: string;
+    genre?: string;
+    mood?: string;
+    language?: string;
 }
 
 export interface GenerateLyricsResponse {
-  lyrics: string;
-  genre?: string;
-  mood?: string;
-  suggestions?: StyleSuggestion;
-}
-
-export interface EnhancePromptRequest {
-  prompt: string;
-}
-
-export interface EnhancePromptResponse {
-  enhanced_prompt: string;
+    lyrics: string;
+    genre?: string;
+    mood?: string;
+    suggestions?: StyleSuggestion;
 }
 
 export interface StyleSuggestion {
-  genres: string[];
-  moods: string[];
-  tempo: number;
-  musical_key: string;
-  instruments: string[];
-  title_suggestion: string;
-  references: string[];
+    genres: string[];
+    moods: string[];
+    tempo?: number | null;
+    musical_key?: string | null;
+    instruments: string[];
+    title_suggestion?: string | null;
+    references: string[];
 }
 
 export interface StyleSuggestRequest {
-  prompt: string;
-  genre?: string;
-  mood?: string;
+    prompt: string;
+    genre?: string;
+    mood?: string;
 }
 
 export interface TitleGenerateRequest {
-  lyrics: string;
-  genre?: string;
-  mood?: string;
-}
-
-export interface ProviderInfo {
-  name: string;
-  provider_type: string;
-  models: string[];
-  is_active: boolean;
-  is_healthy?: boolean;
+    lyrics: string;
+    genre?: string;
+    mood?: string;
 }
 
 export type CreateMode = "smart" | "custom";
 
 export type PageId =
-  | "create"
-  | "library"
-  | "history"
-  | "providers"
-  | "settings";
+    | "create"
+    | "library"
+    | "history"
+    | "providers"
+    | "settings";
 
 // ---- LLM config management types ----
 
 export type LLMProviderType = "openrouter" | "ollama" | "openai_compat";
 
 export interface LLMProviderEntry {
-  name: string;
-  type: LLMProviderType;
-  base_url: string;
-  api_key: string;
-  models: string[];
+    name: string;
+    type: LLMProviderType;
+    base_url: string;
+    api_key: string;
+    models: string[];
 }
 
 export interface LLMConfig {
-  providers: LLMProviderEntry[];
-  router: Record<string, string>;
+    providers: LLMProviderEntry[];
+    router: Record<string, string>;
 }
 
 export interface LLMTestRequest {
-  type: LLMProviderType;
-  base_url: string;
-  api_key?: string;
-  model?: string;
+    type: LLMProviderType;
+    base_url: string;
+    api_key?: string;
+    model?: string;
 }
 
 export interface LLMTestResponse {
-  success: boolean;
-  message: string;
-  models: string[];
+    success: boolean;
+    message: string;
+    models: string[];
 }
 
 export interface OllamaStatus {
-  available: boolean;
-  models: string[];
+    available: boolean;
+    models: string[];
 }
 
 // ---- Music config management types ----
 
 export interface MusicModelEntry {
-  name: string;
-  model_id: string;
+    name: string;
+    model_id: string;
 }
 
 export interface MusicProviderEntry {
-  name: string;
-  type: string;
-  models: MusicModelEntry[];
+    name: string;
+    type: string;
+    models: MusicModelEntry[];
 }
 
 export interface MusicProviderConfig {
-  providers: MusicProviderEntry[];
-  router: Record<string, string>;
+    providers: MusicProviderEntry[];
+    router: Record<string, string>;
 }
 
 // ---- Marketplace types ----
 
 export interface HFModelInfo {
-  id: string;
-  author: string;
-  pipeline_tag: string;
-  downloads: number;
-  likes: number;
-  tags: string[];
-  license: string;
-  size_str: string;
-  library_name: string;
-  is_cached: boolean;
+    id: string;
+    author: string;
+    pipeline_tag: string;
+    downloads: number;
+    likes: number;
+    tags: string[];
+    license: string;
+    size_str: string;
+    library_name: string;
+    is_cached: boolean;
 }
 
 export interface HFSearchResponse {
-  models: HFModelInfo[];
-  total: number;
+    models: HFModelInfo[];
+    total: number;
 }
 
 export interface DownloadProgress {
-  download_id: string;
-  repo_id: string;
-  status: "pending" | "downloading" | "completed" | "failed";
-  progress: number;
-  downloaded_size: string;
-  total_size: string;
-  message: string;
+    download_id: string;
+    repo_id: string;
+    status: "pending" | "downloading" | "completed" | "failed";
+    progress: number;
+    message: string;
 }
 
 export interface CachedModelInfo {
-  repo_id: string;
-  size_on_disk: number;
-  size_str: string;
-  nb_files: number;
-  last_accessed: string;
-  last_modified: string;
+    repo_id: string;
+    size_str: string;
+    nb_files: number;
+    last_accessed: number;
 }
 
 export type ProviderTab = "llm" | "music" | "image";
