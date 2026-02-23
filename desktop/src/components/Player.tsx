@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Play,
   Pause,
@@ -9,11 +9,15 @@ import {
   Download,
   Heart,
   Music,
+  FileText,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import WaveSurfer from "wavesurfer.js";
 import { usePlayerStore } from "../stores/playerStore";
 import { api } from "../services/api";
+import LyricsPanel from "./LyricsPanel";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -46,9 +50,50 @@ function VolumeIcon({ volume }: { volume: number }) {
   return <Volume2 className="w-4 h-4 text-text-tertiary" />;
 }
 
+type DownloadFormat = "wav" | "mp3" | "flac";
+
+const FORMAT_OPTIONS: { value: DownloadFormat; label: string; desc: string }[] = [
+  { value: "wav", label: "WAV", desc: "Lossless" },
+  { value: "mp3", label: "MP3", desc: "Compressed" },
+  { value: "flac", label: "FLAC", desc: "Lossless" },
+];
+
+/* --- Toast component --- */
+function Toast({
+  message,
+  onDone,
+}: {
+  message: string;
+  onDone: () => void;
+}) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3000);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className="fixed top-12 right-4 z-50 px-4 py-2.5 rounded-xl
+                 bg-white border border-primary-200 text-[13px] text-primary-700
+                 font-medium shadow-lg flex items-center gap-2"
+    >
+      <Download className="w-3.5 h-3.5" />
+      {message}
+    </motion.div>
+  );
+}
+
 export default function Player() {
   const waveformRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
+  const formatMenuRef = useRef<HTMLDivElement>(null);
+
+  const [showLyrics, setShowLyrics] = useState(false);
+  const [showFormatMenu, setShowFormatMenu] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const {
     currentTrack,
@@ -65,6 +110,22 @@ export default function Player() {
     toggleLike,
   } = usePlayerStore();
 
+  // Close format menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (
+        formatMenuRef.current &&
+        !formatMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowFormatMenu(false);
+      }
+    }
+    if (showFormatMenu) {
+      document.addEventListener("mousedown", handleClick);
+      return () => document.removeEventListener("mousedown", handleClick);
+    }
+  }, [showFormatMenu]);
+
   const initWaveSurfer = useCallback(() => {
     if (!waveformRef.current) return;
     if (wsRef.current) {
@@ -72,13 +133,13 @@ export default function Player() {
     }
     const ws = WaveSurfer.create({
       container: waveformRef.current,
-      waveColor: "#c4b5fd",
+      waveColor: "#ddd6fe",
       progressColor: "#7c3aed",
       cursorColor: "#7c3aed",
       barWidth: 2,
       barGap: 1.5,
-      barRadius: 2,
-      height: 40,
+      barRadius: 3,
+      height: 36,
       normalize: true,
     });
     ws.on("ready", () => setDuration(ws.getDuration()));
@@ -95,7 +156,6 @@ export default function Player() {
     if (!currentTrack?.audio_path) return;
     const ws = initWaveSurfer();
     if (ws) {
-      // api.getAudioUrl extracts basename from full filesystem path
       const url = api.getAudioUrl(currentTrack.audio_path);
       ws.load(url);
       ws.on("ready", () => ws.play());
@@ -121,14 +181,19 @@ export default function Player() {
     stop();
   };
 
-  const handleDownload = () => {
+  const handleDownload = (format: DownloadFormat) => {
     if (!currentTrack?.audio_path) return;
-    const url = api.getAudioUrl(currentTrack.audio_path);
+    setShowFormatMenu(false);
+    let url = api.getAudioUrl(currentTrack.audio_path);
+    if (format !== "wav") {
+      url += `?format=${format}`;
+    }
     const a = document.createElement("a");
     a.href = url;
     const fileName = currentTrack.title || currentTrack.prompt.slice(0, 30);
-    a.download = `${fileName}.wav`;
+    a.download = `${fileName}.${format}`;
     a.click();
+    setToastMessage(`Downloading ${format.toUpperCase()}...`);
   };
 
   if (!currentTrack) return null;
@@ -136,124 +201,217 @@ export default function Player() {
   const liked = likedIds.has(currentTrack.id);
   const gradient = getGenreGradient(currentTrack.genre);
   const hasCover = !!currentTrack.cover_art_path;
+  const hasLyrics = !!currentTrack.lyrics;
   const displayTitle = currentTrack.title || currentTrack.prompt.slice(0, 40);
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: "spring", duration: 0.5, bounce: 0.15 }}
-        className="h-[72px] bg-white border-t border-border
-                   flex items-center px-4 gap-3"
-      >
-        {/* Cover art or genre-colored thumbnail */}
-        {hasCover ? (
-          <img
-            src={api.getCoverArtUrl(currentTrack.cover_art_path!)}
-            alt="Cover"
-            className="w-11 h-11 rounded-lg object-cover flex-shrink-0 shadow-sm"
+    <>
+      {/* Toast */}
+      <AnimatePresence>
+        {toastMessage && (
+          <Toast
+            message={toastMessage}
+            onDone={() => setToastMessage(null)}
           />
-        ) : (
-          <div
-            className={`w-11 h-11 rounded-lg bg-gradient-to-br ${gradient}
-                        flex items-center justify-center flex-shrink-0
-                        shadow-sm`}
-          >
-            <Music className="w-5 h-5 text-white/90" />
-          </div>
         )}
+      </AnimatePresence>
 
-        {/* Track info + heart */}
-        <div className="w-40 flex-shrink-0 min-w-0">
-          <p className="text-sm font-medium text-text-primary truncate">
-            {displayTitle}
-          </p>
-          <p className="text-xs text-text-tertiary mt-0.5 truncate">
-            {currentTrack.genre || "Generated"}
-          </p>
-        </div>
-
-        {/* Heart / like */}
-        <button
-          onClick={() => toggleLike(currentTrack.id)}
-          className="p-1.5 rounded-full hover:bg-surface-tertiary
-                     transition-colors cursor-pointer flex-shrink-0"
+      <AnimatePresence>
+        <motion.div
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: "spring", duration: 0.5, bounce: 0.15 }}
+          className="bg-white border-t border-border flex-shrink-0"
         >
-          <Heart
-            className={`w-4 h-4 transition-colors ${
-              liked
-                ? "fill-red-500 text-red-500"
-                : "text-text-tertiary"
-            }`}
-          />
-        </button>
-
-        {/* Controls */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="w-9 h-9 rounded-full bg-primary-600
-                       hover:bg-primary-700 flex items-center
-                       justify-center transition-colors
-                       cursor-pointer shadow-sm"
-          >
-            {isPlaying ? (
-              <Pause className="w-4 h-4 text-white" />
-            ) : (
-              <Play className="w-4 h-4 text-white ml-0.5" />
+          {/* Lyrics panel (collapsible) */}
+          <AnimatePresence>
+            {showLyrics && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="overflow-hidden border-b border-border-light"
+              >
+                <LyricsPanel
+                  lyrics={currentTrack.lyrics}
+                  currentTime={currentTime}
+                  duration={duration}
+                />
+              </motion.div>
             )}
-          </button>
-          <button
-            onClick={handleStop}
-            className="w-8 h-8 rounded-full hover:bg-surface-tertiary
-                       flex items-center justify-center
-                       transition-colors cursor-pointer"
-          >
-            <Square className="w-3.5 h-3.5 text-text-secondary" />
-          </button>
-        </div>
+          </AnimatePresence>
 
-        {/* Time + Waveform */}
-        <span className="text-[11px] text-text-tertiary w-9
-                         text-right tabular-nums flex-shrink-0">
-          {formatTime(currentTime)}
-        </span>
-        <div ref={waveformRef} className="flex-1 mx-1 min-w-0" />
-        <span className="text-[11px] text-text-tertiary w-9
-                         tabular-nums flex-shrink-0">
-          {formatTime(duration)}
-        </span>
+          {/* Player controls bar */}
+          <div className="h-[72px] flex items-center px-4 gap-3">
+            {/* Cover art / genre thumbnail */}
+            {hasCover ? (
+              <img
+                src={api.getCoverArtUrl(currentTrack.cover_art_path!)}
+                alt="Cover"
+                className="w-11 h-11 rounded-lg object-cover flex-shrink-0 shadow-sm"
+              />
+            ) : (
+              <div
+                className={`w-11 h-11 rounded-lg bg-gradient-to-br ${gradient}
+                            flex items-center justify-center flex-shrink-0
+                            shadow-sm`}
+              >
+                <Music className="w-5 h-5 text-white/80" />
+              </div>
+            )}
 
-        {/* Volume */}
-        <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
-          <button
-            onClick={() => setVolume(volume === 0 ? 0.8 : 0)}
-            className="cursor-pointer p-1 rounded
-                       hover:bg-surface-tertiary transition-colors"
-          >
-            <VolumeIcon volume={volume} />
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={volume}
-            onChange={(e) => setVolume(Number(e.target.value))}
-            className="flex-1 volume-slider"
-          />
-        </div>
+            {/* Track info */}
+            <div className="w-40 flex-shrink-0 min-w-0">
+              <p className="text-[13px] font-semibold text-text-primary truncate leading-tight">
+                {displayTitle}
+              </p>
+              <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
+                {currentTrack.genre || "Generated"}
+              </p>
+            </div>
 
-        {/* Download */}
-        <button
-          onClick={handleDownload}
-          className="p-2 rounded-lg hover:bg-surface-tertiary
-                     transition-colors cursor-pointer flex-shrink-0"
-        >
-          <Download className="w-4 h-4 text-text-secondary" />
-        </button>
-      </motion.div>
-    </AnimatePresence>
+            {/* Heart */}
+            <button
+              onClick={() => toggleLike(currentTrack.id)}
+              className="p-1.5 rounded-full hover:bg-surface-tertiary
+                         transition-colors cursor-pointer flex-shrink-0"
+            >
+              <Heart
+                className={`w-4 h-4 transition-colors ${
+                  liked
+                    ? "fill-red-500 text-red-500"
+                    : "text-text-tertiary hover:text-text-secondary"
+                }`}
+              />
+            </button>
+
+            {/* Lyrics toggle */}
+            <button
+              onClick={() => setShowLyrics(!showLyrics)}
+              className={`p-1.5 rounded-full transition-all cursor-pointer flex-shrink-0 ${
+                showLyrics
+                  ? "bg-primary-100 text-primary-600"
+                  : hasLyrics
+                    ? "hover:bg-surface-tertiary text-text-tertiary hover:text-text-secondary"
+                    : "text-text-tertiary opacity-30 cursor-not-allowed"
+              }`}
+              disabled={!hasLyrics}
+              title={hasLyrics ? "Toggle lyrics" : "No lyrics available"}
+            >
+              <FileText className="w-4 h-4" />
+            </button>
+
+            {/* Playback controls */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                className="w-9 h-9 rounded-full bg-primary-600
+                           hover:bg-primary-700 flex items-center
+                           justify-center transition-colors
+                           cursor-pointer shadow-sm active:scale-95"
+              >
+                {isPlaying ? (
+                  <Pause className="w-4 h-4 text-white" />
+                ) : (
+                  <Play className="w-4 h-4 text-white ml-0.5" />
+                )}
+              </button>
+              <button
+                onClick={handleStop}
+                className="w-8 h-8 rounded-full hover:bg-surface-tertiary
+                           flex items-center justify-center
+                           transition-colors cursor-pointer"
+              >
+                <Square className="w-3.5 h-3.5 text-text-tertiary" />
+              </button>
+            </div>
+
+            {/* Time + Waveform */}
+            <span className="text-[11px] text-text-tertiary w-9
+                             text-right tabular-nums flex-shrink-0">
+              {formatTime(currentTime)}
+            </span>
+            <div ref={waveformRef} className="flex-1 mx-1 min-w-0" />
+            <span className="text-[11px] text-text-tertiary w-9
+                             tabular-nums flex-shrink-0">
+              {formatTime(duration)}
+            </span>
+
+            {/* Volume */}
+            <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
+              <button
+                onClick={() => setVolume(volume === 0 ? 0.8 : 0)}
+                className="cursor-pointer p-1 rounded
+                           hover:bg-surface-tertiary transition-colors"
+              >
+                <VolumeIcon volume={volume} />
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                className="flex-1 volume-slider"
+              />
+            </div>
+
+            {/* Download with format selector */}
+            <div className="relative flex-shrink-0" ref={formatMenuRef}>
+              <button
+                onClick={() => setShowFormatMenu(!showFormatMenu)}
+                className="flex items-center gap-0.5 p-2 rounded-lg hover:bg-surface-tertiary
+                           transition-colors cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-text-tertiary hover:text-text-secondary" />
+                <ChevronDown className="w-2.5 h-2.5 text-text-tertiary" />
+              </button>
+
+              <AnimatePresence>
+                {showFormatMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute bottom-full right-0 mb-2 w-40
+                               bg-white rounded-xl border border-border
+                               shadow-xl overflow-hidden z-50"
+                  >
+                    <div className="py-1.5">
+                      <div className="px-3 py-1.5 text-[10px] font-semibold
+                                      text-text-tertiary uppercase tracking-wider">
+                        Download as
+                      </div>
+                      {FORMAT_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => handleDownload(opt.value)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2
+                                     text-[13px] text-text-primary hover:bg-surface-tertiary
+                                     transition-colors cursor-pointer"
+                        >
+                          {opt.value === "wav" ? (
+                            <Check className="w-3.5 h-3.5 text-primary-500" />
+                          ) : (
+                            <span className="w-3.5" />
+                          )}
+                          <span className="font-medium">{opt.label}</span>
+                          <span className="text-[10px] text-text-tertiary ml-auto">
+                            {opt.desc}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    </>
   );
 }
