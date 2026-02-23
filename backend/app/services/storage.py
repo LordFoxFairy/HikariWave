@@ -11,9 +11,17 @@ class StorageService:
         self.base_dir = Path(settings.storage_dir)
         self.audio_dir = self.base_dir / settings.audio_subdir
         self.audio_dir.mkdir(parents=True, exist_ok=True)
+        self.covers_dir = self.base_dir / "covers"
+        self.covers_dir.mkdir(parents=True, exist_ok=True)
 
     def get_audio_path(self, filename: str) -> Path | None:
         path = self.audio_dir / filename
+        if path.exists():
+            return path
+        return None
+
+    def get_cover_path(self, filename: str) -> Path | None:
+        path = self.covers_dir / filename
         if path.exists():
             return path
         return None
@@ -26,15 +34,26 @@ class StorageService:
             return True
         return False
 
+    def delete_cover(self, filename: str) -> bool:
+        path = self.covers_dir / filename
+        if path.exists():
+            path.unlink()
+            logger.info("Deleted cover file: %s", filename)
+            return True
+        return False
+
     def get_audio_dir(self) -> Path:
         return self.audio_dir
 
+    def get_covers_dir(self) -> Path:
+        return self.covers_dir
+
     def disk_usage(self) -> dict:
         total_size = sum(
-            f.stat().st_size for f in self.audio_dir.rglob("*") if f.is_file()
+            f.stat().st_size for f in self.base_dir.rglob("*") if f.is_file()
         )
         return {
-            "directory": str(self.audio_dir),
+            "directory": str(self.base_dir),
             "total_bytes": total_size,
             "total_mb": round(total_size / (1024 * 1024), 2),
         }

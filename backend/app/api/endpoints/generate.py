@@ -1,11 +1,13 @@
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.db.session import get_db
 from backend.app.providers.manager import provider_manager
 from backend.app.schemas.generation import (
+    CoverArtRequest,
+    CoverArtResponse,
     EnhancedPromptResponse,
     LyricsGenerationRequest,
     LyricsResponse,
@@ -45,6 +47,7 @@ async def generate_music(
         instrumental=req.instrumental,
         enhance_prompt=req.enhance_prompt,
         generate_lyrics=req.generate_lyrics,
+        generate_cover=req.generate_cover,
     )
     return TaskResponse(task_id=gen.task_id, status=gen.status)
 
@@ -112,3 +115,24 @@ async def generate_title(req: TitleGenerationRequest):
         prompt=req.prompt,
     )
     return TitleGenerationResponse(title=title)
+
+
+@router.post("/cover-art", response_model=CoverArtResponse)
+async def generate_cover_art(
+    req: CoverArtRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        path, prompt_used = await generation_service.generate_cover_for_existing(
+            db=db,
+            generation_id=req.generation_id,
+            title=req.title,
+            genre=req.genre,
+            mood=req.mood,
+            lyrics=req.lyrics,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return CoverArtResponse(cover_art_path=path, prompt_used=prompt_used)

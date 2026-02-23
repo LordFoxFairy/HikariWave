@@ -30,6 +30,7 @@ class GenerationService:
         instrumental: bool = False,
         enhance_prompt: bool = True,
         generate_lyrics: bool = False,
+        generate_cover: bool = True,
     ) -> Generation:
         task_id = uuid.uuid4().hex
         llm_provider_name: str | None = None
@@ -94,12 +95,17 @@ class GenerationService:
         await db.flush()
 
         # Dispatch generation as an async background task
-        asyncio.create_task(self._run_generation_background(gen.task_id, music_req))
+        asyncio.create_task(
+            self._run_generation_background(gen.task_id, music_req, generate_cover)
+        )
 
         return gen
 
     async def _run_generation_background(
-        self, task_id: str, music_req: MusicReq
+        self,
+        task_id: str,
+        music_req: MusicReq,
+        generate_cover: bool = True,
     ) -> None:
         """Run music generation in background and update DB record."""
         from backend.app.db.session import async_session_factory
@@ -133,6 +139,10 @@ class GenerationService:
                 await db.commit()
                 logger.info("Generation completed: task_id=%s", task_id)
 
+                # Cover art generation (optional, non-blocking)
+                if generate_cover:
+                    await self._generate_cover_art(task_id, gen)
+
         except Exception as exc:
             logger.exception("Background generation failed: task_id=%s", task_id)
             try:
@@ -148,6 +158,104 @@ class GenerationService:
                         await db.commit()
             except Exception:
                 logger.exception("Failed to mark generation as failed: %s", task_id)
+
+    async def _generate_cover_art(self, task_id: str, gen: Generation) -> None:
+        """Generate cover art for a completed generation. Never fails the generation."""
+        from backend.app.providers.image.base import ImageGenerationRequest
+
+        try:
+            image_provider = provider_manager.get_image_provider()
+            if image_provider is None:
+                logger.debug("No image provider configured, skipping cover art")
+                return
+
+            # Generate cover art prompt via LLM
+            llm_provider, llm_model = provider_manager.get_llm_provider("cover_art")
+            cover_prompt = await llm_provider.generate_cover_prompt(
+                model=llm_model,
+                title=gen.title,
+                genre=gen.genre,
+                mood=gen.mood,
+                lyrics=gen.lyrics,
+            )
+
+            # Generate the image
+            image_req = ImageGenerationRequest(
+                prompt=cover_prompt,
+                width=image_provider.config.default_width,
+                height=image_provider.config.default_height,
+            )
+            image_resp = await image_provider.generate(image_req)
+
+            # Update the generation record with cover art info
+            from backend.app.db.session import async_session_factory
+
+            async with async_session_factory() as db:
+                result = await db.execute(
+                    select(Generation).where(Generation.task_id == task_id)
+                )
+                gen_record = result.scalar_one_or_none()
+                if gen_record:
+                    gen_record.cover_art_path = image_resp.image_path
+                    gen_record.cover_art_prompt = cover_prompt
+                    await db.commit()
+                    logger.info("Cover art saved for task_id=%s", task_id)
+
+        except Exception:
+            logger.exception(
+                "Cover art generation failed for task_id=%s (non-fatal)", task_id
+            )
+
+    async def generate_cover_for_existing(
+        self,
+        db: AsyncSession,
+        generation_id: int,
+        title: str | None = None,
+        genre: str | None = None,
+        mood: str | None = None,
+        lyrics: str | None = None,
+    ) -> tuple[str, str]:
+        """Generate cover art for an existing generation. Returns (path, prompt)."""
+        from backend.app.providers.image.base import ImageGenerationRequest
+
+        gen = await self.get_generation(db, generation_id)
+        if gen is None:
+            raise ValueError(f"Generation {generation_id} not found")
+
+        image_provider = provider_manager.get_image_provider()
+        if image_provider is None:
+            raise RuntimeError("No image provider configured")
+
+        # Use provided metadata or fall back to generation record
+        art_title = title or gen.title
+        art_genre = genre or gen.genre
+        art_mood = mood or gen.mood
+        art_lyrics = lyrics or gen.lyrics
+
+        # Generate cover art prompt via LLM
+        llm_provider, llm_model = provider_manager.get_llm_provider("cover_art")
+        cover_prompt = await llm_provider.generate_cover_prompt(
+            model=llm_model,
+            title=art_title,
+            genre=art_genre,
+            mood=art_mood,
+            lyrics=art_lyrics,
+        )
+
+        # Generate the image
+        image_req = ImageGenerationRequest(
+            prompt=cover_prompt,
+            width=image_provider.config.default_width,
+            height=image_provider.config.default_height,
+        )
+        image_resp = await image_provider.generate(image_req)
+
+        # Update generation record
+        gen.cover_art_path = image_resp.image_path
+        gen.cover_art_prompt = cover_prompt
+        await db.commit()
+
+        return image_resp.image_path, cover_prompt
 
     async def get_generation(
         self, db: AsyncSession, generation_id: int

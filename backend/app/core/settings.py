@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # Storage
     storage_dir: str = str(Path(__file__).resolve().parent.parent.parent / "storage")
     audio_subdir: str = "audio"
+    covers_subdir: str = "covers"
 
     # OpenRouter
     openrouter_api_key: str = os.environ.get("OPENROUTER_API_KEY", "")

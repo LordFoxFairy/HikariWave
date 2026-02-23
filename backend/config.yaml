@@ -25,3 +25,16 @@ music:
     default: local:ace-step-v1
     vocal: local:ace-step-v1
     instrumental: local:musicgen-large
+
+image:
+  providers:
+    - name: together
+      type: api
+      api_key: ${TOGETHER_API_KEY}
+      base_url: https://api.together.xyz/v1/images/generations
+      models:
+        - black-forest-labs/FLUX.1-schnell
+      default_width: 1024
+      default_height: 1024
+  router:
+    default: together:black-forest-labs/FLUX.1-schnell

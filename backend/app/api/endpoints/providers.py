@@ -32,3 +32,8 @@ async def set_active_music(provider_name: str):
         "detail": "not yet implemented",
         "provider_name": provider_name,
     }
+
+
+@router.get("/image")
+async def list_image_providers():
+    return {"providers": provider_manager.list_image_providers()}

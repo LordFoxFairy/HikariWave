@@ -40,9 +40,11 @@ async def delete_generation(
     gen = await generation_service.get_generation(db, generation_id)
     if gen is None:
         raise HTTPException(status_code=404, detail="Generation not found")
-    if gen.audio_path:
-        from pathlib import Path
+    from pathlib import Path
 
+    if gen.audio_path:
         storage_service.delete_audio(Path(gen.audio_path).name)
+    if gen.cover_art_path:
+        storage_service.delete_cover(Path(gen.cover_art_path).name)
     await generation_service.delete_generation(db, generation_id)
     return {"detail": "deleted"}
