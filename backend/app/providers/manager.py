@@ -3,31 +3,26 @@ import logging
 from backend.app.core.config import load_yaml_config
 from backend.app.providers.image.base import BaseImageProvider, ImageProviderConfig
 from backend.app.providers.image.together import TogetherImageProvider
-from backend.app.providers.llm.base import BaseLLMProvider, LLMProviderConfig
-from backend.app.providers.llm.ollama import OllamaProvider
-from backend.app.providers.llm.openai_compat import OpenAICompatProvider
-from backend.app.providers.llm.openrouter import OpenRouterProvider
-from backend.app.providers.music.ace_step import ACEStepProvider
+from backend.app.providers.llm.base import LLMProvider, LLMProviderConfig
 from backend.app.providers.music.base import (
     BaseMusicProvider,
-    MusicGenerationRequest,
     MusicProviderConfig,
 )
-from backend.app.providers.music.musicgen import MusicGenProvider
+from backend.app.providers.music.huggingface import HuggingFaceMusicProvider
 
 logger = logging.getLogger(__name__)
 
-LLM_PROVIDER_CLASSES: dict[str, type[BaseLLMProvider]] = {
-    "openrouter": OpenRouterProvider,
-    "ollama": OllamaProvider,
-    "openai_compat": OpenAICompatProvider,
+# Maps config "type" value → LangChain model_provider string
+LLM_TYPE_TO_PROVIDER: dict[str, str] = {
+    "openrouter": "openai",
+    "openai": "openai",
+    "openai_compat": "openai",
+    "ollama": "openai",  # Ollama exposes /v1 OpenAI-compatible API
 }
 
 MUSIC_PROVIDER_CLASSES: dict[str, type[BaseMusicProvider]] = {
-    "ace-step-v1": ACEStepProvider,
-    "musicgen-small": MusicGenProvider,
-    "musicgen-medium": MusicGenProvider,
-    "musicgen-large": MusicGenProvider,
+    "huggingface": HuggingFaceMusicProvider,
+    "local_gpu": HuggingFaceMusicProvider,
 }
 
 IMAGE_PROVIDER_CLASSES: dict[str, type[BaseImageProvider]] = {
@@ -37,7 +32,7 @@ IMAGE_PROVIDER_CLASSES: dict[str, type[BaseImageProvider]] = {
 
 class ProviderManager:
     def __init__(self) -> None:
-        self._llm_providers: dict[str, BaseLLMProvider] = {}
+        self._llm_providers: dict[str, LLMProvider] = {}
         self._music_providers: dict[str, BaseMusicProvider] = {}
         self._image_providers: dict[str, BaseImageProvider] = {}
         self._llm_router: dict[str, str] = {}
@@ -66,71 +61,71 @@ class ProviderManager:
         self._llm_providers.clear()
         for entry in self._config.get("llm", {}).get("providers", []):
             name = entry["name"]
-            provider_type = entry.get("type", name)
-            cls = LLM_PROVIDER_CLASSES.get(provider_type)
-            if cls is None:
-                logger.warning("Unknown LLM provider type: %s", provider_type)
-                continue
+            config_type = entry.get("type", name)
+            lc_provider = LLM_TYPE_TO_PROVIDER.get(config_type, "openai")
+
+            base_url = entry.get("base_url", "")
+            # Ollama: ensure base_url ends with /v1 for OpenAI-compat API
+            is_ollama_missing_v1 = (
+                    config_type == "ollama"
+                    and base_url
+                    and not base_url.rstrip("/").endswith("/v1")
+            )
+            if is_ollama_missing_v1:
+                base_url = base_url.rstrip("/") + "/v1"
+
             cfg = LLMProviderConfig(
                 name=name,
-                base_url=entry.get("base_url", ""),
-                api_key=entry.get("api_key", ""),
+                provider_type=lc_provider,
+                base_url=base_url,
+                api_key=(
+                        entry.get("api_key", "")
+                        or ("ollama" if config_type == "ollama" else "")
+                ),
                 models=entry.get("models", []),
             )
-            self._llm_providers[name] = cls(cfg)
-
-    def _resolve_music_provider_class(
-        self, model_name: str,
-    ) -> type[BaseMusicProvider] | None:
-        # Exact match first
-        cls = MUSIC_PROVIDER_CLASSES.get(model_name)
-        if cls:
-            return cls
-        # Pattern match
-        name_lower = model_name.lower()
-        if "musicgen" in name_lower:
-            return MusicGenProvider
-        if any(k in name_lower for k in (
-            "ace-step", "ace_step", "acestep",
-        )):
-            return ACEStepProvider
-        return None
+            self._llm_providers[name] = LLMProvider(cfg)
 
     def _init_music_providers(self) -> None:
         self._music_providers.clear()
         for entry in self._config.get("music", {}).get("providers", []):
+            provider_type = entry.get("type", "huggingface")
+            cls = MUSIC_PROVIDER_CLASSES.get(provider_type)
+            if cls is None:
+                logger.warning("Unknown music provider type: %s", provider_type)
+                cls = HuggingFaceMusicProvider
             for model_entry in entry.get("models", []):
-                # Support both string and dict model entries
                 if isinstance(model_entry, dict):
                     model_name = model_entry["name"]
                     model_id = model_entry.get("model_id", "")
+                    backend_type = model_entry.get("backend_type", "auto")
                 else:
                     model_name = model_entry
                     model_id = ""
-                cls = self._resolve_music_provider_class(model_name)
-                if cls is None:
-                    logger.warning("Unknown music model: %s", model_name)
-                    continue
+                    backend_type = "auto"
                 cfg = MusicProviderConfig(
                     name=f"{entry['name']}:{model_name}",
-                    provider_type=entry.get("type", "local_gpu"),
+                    provider_type=provider_type,
                     model_name=model_name,
                     model_id=model_id,
+                    backend_type=backend_type,
                 )
                 key = f"{entry['name']}:{model_name}"
                 self._music_providers[key] = cls(cfg)
 
     def _init_image_providers(self) -> None:
+        self._image_providers.clear()
         for entry in self._config.get("image", {}).get("providers", []):
             name = entry["name"]
-            cls = IMAGE_PROVIDER_CLASSES.get(name)
+            provider_type = entry.get("type", name)
+            cls = IMAGE_PROVIDER_CLASSES.get(provider_type)
             if cls is None:
-                logger.warning("Unknown image provider: %s", name)
+                logger.warning("Unknown image provider: %s", provider_type)
                 continue
             for model_name in entry.get("models", []):
                 cfg = ImageProviderConfig(
                     name=f"{name}:{model_name}",
-                    provider_type=entry.get("type", "api"),
+                    provider_type=provider_type,
                     model_name=model_name,
                     api_key=entry.get("api_key", ""),
                     base_url=entry.get("base_url", ""),
@@ -150,7 +145,7 @@ class ProviderManager:
 
     # ------ LLM public API ------
 
-    def get_llm_provider(self, task: str = "default") -> tuple[BaseLLMProvider, str]:
+    def get_llm_provider(self, task: str = "default") -> tuple[LLMProvider, str]:
         route = self._llm_router.get(task, self._llm_router.get("default", ""))
         provider_name, model = self._parse_route(route)
         provider = self._llm_providers.get(provider_name)
@@ -166,24 +161,25 @@ class ProviderManager:
                     "name": name,
                     "provider_type": "api",
                     "models": p.config.models,
-                    "is_active": name in self._llm_router.get("default", ""),
+                    "is_active": self._llm_router.get(
+                        "default", ""
+                    ).startswith(name + ":"),
                 }
             )
         return result
 
     def get_llm_config(self) -> dict:
         """Return the full LLM configuration: providers + router."""
-        providers = []
-        for entry in self._config.get("llm", {}).get("providers", []):
-            providers.append(
-                {
-                    "name": entry["name"],
-                    "type": entry.get("type", entry["name"]),
-                    "base_url": entry.get("base_url", ""),
-                    "api_key": entry.get("api_key", ""),
-                    "models": entry.get("models", []),
-                }
-            )
+        providers = [
+            {
+                "name": entry["name"],
+                "type": entry.get("type", entry["name"]),
+                "base_url": entry.get("base_url", ""),
+                "api_key": entry.get("api_key", ""),
+                "models": entry.get("models", []),
+            }
+            for entry in self._config.get("llm", {}).get("providers", [])
+        ]
         return {
             "providers": providers,
             "router": dict(self._llm_router),
@@ -214,7 +210,7 @@ class ProviderManager:
                     models.append({"name": m, "model_id": ""})
             providers.append({
                 "name": entry["name"],
-                "type": entry.get("type", "local_gpu"),
+                "type": entry.get("type", "huggingface"),
                 "models": models,
             })
         return {
@@ -223,7 +219,7 @@ class ProviderManager:
         }
 
     def update_music_config(
-        self, providers: list[dict], router: dict[str, str],
+            self, providers: list[dict], router: dict[str, str],
     ) -> None:
         """Update the music section of config and reinitialise providers."""
         self._config.setdefault("music", {})
@@ -232,15 +228,14 @@ class ProviderManager:
         self._init_music_providers()
         self._music_router = router
 
-    def get_music_provider(
-        self, request: MusicGenerationRequest | None = None
-    ) -> BaseMusicProvider:
-        if request and request.lyrics:
-            route = self._music_router.get("vocal", "")
-        else:
-            route = self._music_router.get("default", "")
+    def get_music_provider(self) -> BaseMusicProvider:
+        """Get the default music provider based on router config."""
+        route = self._music_router.get("default", "")
         provider = self._music_providers.get(route)
         if provider is None:
+            # Fallback: return the first available provider
+            if self._music_providers:
+                return next(iter(self._music_providers.values()))
             raise RuntimeError(f"Music provider not found: {route}")
         return provider
 
@@ -256,6 +251,26 @@ class ProviderManager:
                 }
             )
         return result
+
+    async def preload_music_model(self) -> None:
+        """Preload the default music provider model (download + init)."""
+        try:
+            provider = self.get_music_provider()
+            logger.info(
+                "Preloading music model: %s",
+                provider.config.model_id,
+            )
+            await provider.load_model()
+            logger.info(
+                "Music model preloaded successfully: %s",
+                provider.config.model_id,
+            )
+        except Exception:
+            logger.warning(
+                "Music model preload failed "
+                "(will retry on first generation)",
+                exc_info=True,
+            )
 
     # ------ Image public API ------
 
