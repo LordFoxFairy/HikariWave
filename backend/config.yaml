@@ -1,0 +1,25 @@
+llm:
+  providers:
+    - name: openrouter
+      base_url: https://openrouter.ai/api/v1
+      api_key: ${OPENROUTER_API_KEY}
+      models:
+        - anthropic/claude-opus-4
+        - anthropic/claude-sonnet-4
+        - anthropic/claude-3.5-haiku
+  router:
+    default: openrouter:anthropic/claude-sonnet-4
+    lyrics: openrouter:anthropic/claude-sonnet-4
+    enhancement: openrouter:anthropic/claude-opus-4
+
+music:
+  providers:
+    - name: local
+      type: local_gpu
+      models:
+        - ace-step-v1
+        - musicgen-large
+  router:
+    default: local:ace-step-v1
+    vocal: local:ace-step-v1
+    instrumental: local:musicgen-large
