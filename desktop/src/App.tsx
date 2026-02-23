@@ -3,6 +3,7 @@ import Sidebar from "./components/Sidebar";
 import Player from "./components/Player";
 import CreatePage from "./pages/CreatePage";
 import HistoryPage from "./pages/HistoryPage";
+import ProvidersPage from "./pages/ProvidersPage";
 import SettingsPage from "./pages/SettingsPage";
 import { useAppStore } from "./stores/appStore";
 
@@ -28,6 +29,7 @@ function PageRouter() {
       >
         {currentPage === "create" && <CreatePage />}
         {currentPage === "history" && <HistoryPage />}
+        {currentPage === "providers" && <ProvidersPage />}
         {currentPage === "settings" && <SettingsPage />}
       </motion.div>
     </AnimatePresence>

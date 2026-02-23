@@ -17,6 +17,10 @@ import type {
   LLMTestRequest,
   LLMTestResponse,
   OllamaStatus,
+  HFSearchResponse,
+  HFModelInfo,
+  DownloadProgress,
+  CachedModelInfo,
 } from "../types";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:23456/api/v1";
@@ -178,5 +182,46 @@ export const api = {
     return request<OllamaStatus>(
       `/providers/ollama/status?base_url=${encodeURIComponent(baseUrl)}`,
     );
+  },
+
+  // ---- Marketplace ----
+
+  searchModels(query: string, pipelineTag: string, sort = "downloads", limit = 20) {
+    const params = new URLSearchParams({
+      q: query,
+      pipeline_tag: pipelineTag,
+      sort,
+      limit: String(limit),
+    });
+    return request<HFSearchResponse>(`/marketplace/search?${params}`);
+  },
+
+  getModelInfo(repoId: string) {
+    return request<HFModelInfo>(`/marketplace/model/${repoId}`);
+  },
+
+  downloadModel(repoId: string) {
+    return request<DownloadProgress>("/marketplace/download", {
+      method: "POST",
+      body: JSON.stringify({ repo_id: repoId }),
+    });
+  },
+
+  getDownloadProgress() {
+    return request<DownloadProgress[]>("/marketplace/downloads");
+  },
+
+  getDownloadById(downloadId: string) {
+    return request<DownloadProgress>(`/marketplace/downloads/${downloadId}`);
+  },
+
+  getCachedModels() {
+    return request<CachedModelInfo[]>("/marketplace/cache");
+  },
+
+  deleteCachedModel(repoId: string) {
+    return request<void>(`/marketplace/cache/${repoId}`, {
+      method: "DELETE",
+    });
   },
 };

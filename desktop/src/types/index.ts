@@ -166,6 +166,7 @@ export interface AppSettings {
 export type PageId =
   | "create"
   | "history"
+  | "providers"
   | "settings";
 
 // ---- LLM config management types ----
@@ -202,3 +203,44 @@ export interface OllamaStatus {
   available: boolean;
   models: string[];
 }
+
+// ---- Marketplace types ----
+
+export interface HFModelInfo {
+  id: string;
+  author: string;
+  pipeline_tag: string;
+  downloads: number;
+  likes: number;
+  tags: string[];
+  license: string;
+  size_str: string;
+  library_name: string;
+  is_cached: boolean;
+}
+
+export interface HFSearchResponse {
+  models: HFModelInfo[];
+  total: number;
+}
+
+export interface DownloadProgress {
+  download_id: string;
+  repo_id: string;
+  status: "pending" | "downloading" | "completed" | "failed";
+  progress: number;
+  downloaded_size: string;
+  total_size: string;
+  message: string;
+}
+
+export interface CachedModelInfo {
+  repo_id: string;
+  size_on_disk: number;
+  size_str: string;
+  nb_files: number;
+  last_accessed: string;
+  last_modified: string;
+}
+
+export type ProviderTab = "llm" | "music" | "image";

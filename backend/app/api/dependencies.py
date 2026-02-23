@@ -1,5 +1,8 @@
 from backend.app.services.generation import generation_service as _generation_service
 from backend.app.services.llm_service import llm_service as _llm_service
+from backend.app.services.model_marketplace import (
+    marketplace_service as _marketplace_service,
+)
 from backend.app.services.provider_service import provider_service as _provider_service
 
 
@@ -13,3 +16,7 @@ def get_llm_service():
 
 def get_provider_service():
     return _provider_service
+
+
+def get_marketplace_service():
+    return _marketplace_service

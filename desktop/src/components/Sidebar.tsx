@@ -1,4 +1,4 @@
-import { Music, PlusCircle, Clock, Settings, Sparkles } from "lucide-react";
+import { Music, PlusCircle, Clock, Settings, Sparkles, Layers } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "../stores/appStore";
 import type { PageId } from "../types";
@@ -6,6 +6,7 @@ import type { PageId } from "../types";
 const navItems: { id: PageId; label: string; icon: typeof Music }[] = [
   { id: "create", label: "Create", icon: PlusCircle },
   { id: "history", label: "History", icon: Clock },
+  { id: "providers", label: "Providers", icon: Layers },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
