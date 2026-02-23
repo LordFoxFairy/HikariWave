@@ -3,7 +3,6 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.app.db.session import async_session_factory
 from backend.app.services.generation import generation_service
 
 logger = logging.getLogger(__name__)
@@ -16,8 +15,7 @@ async def task_progress_ws(websocket: WebSocket, task_id: str):
     await websocket.accept()
     try:
         while True:
-            async with async_session_factory() as db:
-                gen = await generation_service.get_by_task_id(db, task_id)
+            gen = await generation_service.get_by_task_id(task_id)
             if gen is None:
                 await websocket.send_json(
                     {"error": "task not found", "task_id": task_id}

@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db.session import get_db
+from backend.app.api.dependencies import get_generation_service
 from backend.app.schemas.generation import GenerationResponse
-from backend.app.services.generation import generation_service
+from backend.app.services.generation import GenerationService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -11,9 +10,9 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 @router.get("/{task_id}", response_model=GenerationResponse)
 async def get_task_status(
     task_id: str,
-    db: AsyncSession = Depends(get_db),
+    svc: GenerationService = Depends(get_generation_service),
 ):
-    gen = await generation_service.get_by_task_id(db, task_id)
+    gen = await svc.get_by_task_id(task_id)
     if gen is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return gen
@@ -22,9 +21,9 @@ async def get_task_status(
 @router.get("/{task_id}/result", response_model=GenerationResponse)
 async def get_task_result(
     task_id: str,
-    db: AsyncSession = Depends(get_db),
+    svc: GenerationService = Depends(get_generation_service),
 ):
-    gen = await generation_service.get_by_task_id(db, task_id)
+    gen = await svc.get_by_task_id(task_id)
     if gen is None:
         raise HTTPException(status_code=404, detail="Task not found")
     if gen.status not in ("completed", "failed"):

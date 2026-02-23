@@ -2,21 +2,23 @@ import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from pathlib import Path
 
 from backend.app.models.database import Generation
 from backend.app.providers.manager import provider_manager
 from backend.app.providers.music.base import MusicGenerationRequest as MusicReq
+from backend.app.repositories.generation import generation_repository
+from backend.app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
 
 
 class GenerationService:
+    def __init__(self) -> None:
+        self._repo = generation_repository
+
     async def create_generation(
         self,
-        db: AsyncSession,
         prompt: str,
         duration: float = 30.0,
         genre: str | None = None,
@@ -73,7 +75,7 @@ class GenerationService:
         )
         music_provider = provider_manager.get_music_provider(music_req)
 
-        gen = Generation(
+        gen = await self._repo.create(
             task_id=task_id,
             status="pending",
             prompt=prompt,
@@ -91,8 +93,6 @@ class GenerationService:
             llm_provider=llm_provider_name,
             music_provider=music_provider.config.name,
         )
-        db.add(gen)
-        await db.flush()
 
         # Dispatch generation as an async background task
         asyncio.create_task(
@@ -107,55 +107,39 @@ class GenerationService:
         music_req: MusicReq,
         generate_cover: bool = True,
     ) -> None:
-        """Run music generation in background and update DB record."""
-        from backend.app.db.session import async_session_factory
-
+        """Run music generation in background and update DB record via repository."""
         try:
-            async with async_session_factory() as db:
-                result = await db.execute(
-                    select(Generation).where(Generation.task_id == task_id)
-                )
-                gen = result.scalar_one_or_none()
-                if gen is None:
-                    logger.error(
-                        "Generation not found for background task: %s",
-                        task_id,
-                    )
-                    return
+            await self._repo.update_status(task_id, "processing", progress=10)
 
-                gen.status = "processing"
-                gen.progress = 10
-                await db.commit()
+            provider = provider_manager.get_music_provider(music_req)
+            response = await provider.generate(music_req)
 
-                provider = provider_manager.get_music_provider(music_req)
-                response = await provider.generate(music_req)
+            await self._repo.update_status(
+                task_id,
+                "completed",
+                audio_path=response.audio_path,
+                audio_format=response.format,
+                actual_duration=response.duration,
+                progress=100,
+                completed_at=datetime.now(UTC),
+            )
+            logger.info("Generation completed: task_id=%s", task_id)
 
-                gen.status = "completed"
-                gen.audio_path = response.audio_path
-                gen.audio_format = response.format
-                gen.actual_duration = response.duration
-                gen.progress = 100
-                gen.completed_at = datetime.now(UTC)
-                await db.commit()
-                logger.info("Generation completed: task_id=%s", task_id)
-
-                # Cover art generation (optional, non-blocking)
-                if generate_cover:
+            # Cover art generation (optional, non-blocking)
+            if generate_cover:
+                gen = await self._repo.get_by_task_id(task_id)
+                if gen:
                     await self._generate_cover_art(task_id, gen)
 
         except Exception as exc:
             logger.exception("Background generation failed: task_id=%s", task_id)
             try:
-                async with async_session_factory() as db:
-                    result = await db.execute(
-                        select(Generation).where(Generation.task_id == task_id)
-                    )
-                    gen = result.scalar_one_or_none()
-                    if gen:
-                        gen.status = "failed"
-                        gen.error_message = str(exc)[:500]
-                        gen.progress = 0
-                        await db.commit()
+                await self._repo.update_status(
+                    task_id,
+                    "failed",
+                    error_message=str(exc)[:500],
+                    progress=0,
+                )
             except Exception:
                 logger.exception("Failed to mark generation as failed: %s", task_id)
 
@@ -188,18 +172,10 @@ class GenerationService:
             image_resp = await image_provider.generate(image_req)
 
             # Update the generation record with cover art info
-            from backend.app.db.session import async_session_factory
-
-            async with async_session_factory() as db:
-                result = await db.execute(
-                    select(Generation).where(Generation.task_id == task_id)
-                )
-                gen_record = result.scalar_one_or_none()
-                if gen_record:
-                    gen_record.cover_art_path = image_resp.image_path
-                    gen_record.cover_art_prompt = cover_prompt
-                    await db.commit()
-                    logger.info("Cover art saved for task_id=%s", task_id)
+            await self._repo.update_cover_art(
+                task_id, image_resp.image_path, cover_prompt
+            )
+            logger.info("Cover art saved for task_id=%s", task_id)
 
         except Exception:
             logger.exception(
@@ -208,7 +184,6 @@ class GenerationService:
 
     async def generate_cover_for_existing(
         self,
-        db: AsyncSession,
         generation_id: int,
         title: str | None = None,
         genre: str | None = None,
@@ -218,7 +193,7 @@ class GenerationService:
         """Generate cover art for an existing generation. Returns (path, prompt)."""
         from backend.app.providers.image.base import ImageGenerationRequest
 
-        gen = await self.get_generation(db, generation_id)
+        gen = await self._repo.get_by_id(generation_id)
         if gen is None:
             raise ValueError(f"Generation {generation_id} not found")
 
@@ -251,51 +226,33 @@ class GenerationService:
         image_resp = await image_provider.generate(image_req)
 
         # Update generation record
-        gen.cover_art_path = image_resp.image_path
-        gen.cover_art_prompt = cover_prompt
-        await db.commit()
+        await self._repo.update_cover_art_by_id(
+            generation_id, image_resp.image_path, cover_prompt
+        )
 
         return image_resp.image_path, cover_prompt
 
-    async def get_generation(
-        self, db: AsyncSession, generation_id: int
-    ) -> Generation | None:
-        result = await db.execute(
-            select(Generation).where(Generation.id == generation_id)
-        )
-        return result.scalar_one_or_none()
+    async def get_generation(self, generation_id: int) -> Generation | None:
+        return await self._repo.get_by_id(generation_id)
 
-    async def get_by_task_id(self, db: AsyncSession, task_id: str) -> Generation | None:
-        result = await db.execute(
-            select(Generation).where(Generation.task_id == task_id)
-        )
-        return result.scalar_one_or_none()
+    async def get_by_task_id(self, task_id: str) -> Generation | None:
+        return await self._repo.get_by_task_id(task_id)
 
     async def list_generations(
-        self,
-        db: AsyncSession,
-        offset: int = 0,
-        limit: int = 50,
+        self, offset: int = 0, limit: int = 50
     ) -> tuple[list[Generation], int]:
-        from sqlalchemy import func
+        return await self._repo.list_all(offset=offset, limit=limit)
 
-        count_q = select(func.count()).select_from(Generation)
-        total = (await db.execute(count_q)).scalar() or 0
-        q = (
-            select(Generation)
-            .order_by(Generation.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
-        rows = (await db.execute(q)).scalars().all()
-        return list(rows), total
-
-    async def delete_generation(self, db: AsyncSession, generation_id: int) -> bool:
-        gen = await self.get_generation(db, generation_id)
+    async def delete_generation(self, generation_id: int) -> bool:
+        gen = await self._repo.get_by_id(generation_id)
         if gen is None:
             return False
-        await db.delete(gen)
-        return True
+        # Clean up files
+        if gen.audio_path:
+            storage_service.delete_audio(Path(gen.audio_path).name)
+        if gen.cover_art_path:
+            storage_service.delete_cover(Path(gen.cover_art_path).name)
+        return await self._repo.delete(generation_id)
 
 
 generation_service = GenerationService()

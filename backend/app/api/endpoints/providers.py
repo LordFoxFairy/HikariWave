@@ -1,18 +1,23 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from backend.app.providers.manager import provider_manager
+from backend.app.api.dependencies import get_provider_service
+from backend.app.services.provider_service import ProviderService
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
 
 @router.get("/llm")
-async def list_llm_providers():
-    return {"providers": provider_manager.list_llm_providers()}
+async def list_llm_providers(
+    svc: ProviderService = Depends(get_provider_service),
+):
+    return {"providers": svc.list_llm_providers()}
 
 
 @router.get("/music")
-async def list_music_providers():
-    return {"providers": provider_manager.list_music_providers()}
+async def list_music_providers(
+    svc: ProviderService = Depends(get_provider_service),
+):
+    return {"providers": svc.list_music_providers()}
 
 
 @router.put("/llm/active")
@@ -35,5 +40,7 @@ async def set_active_music(provider_name: str):
 
 
 @router.get("/image")
-async def list_image_providers():
-    return {"providers": provider_manager.list_image_providers()}
+async def list_image_providers(
+    svc: ProviderService = Depends(get_provider_service),
+):
+    return {"providers": svc.list_image_providers()}

@@ -1,10 +1,8 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db.session import get_db
-from backend.app.providers.manager import provider_manager
+from backend.app.api.dependencies import get_generation_service, get_llm_service
 from backend.app.schemas.generation import (
     CoverArtRequest,
     CoverArtResponse,
@@ -13,14 +11,14 @@ from backend.app.schemas.generation import (
     LyricsResponse,
     MusicGenerationRequest,
     PromptEnhancementRequest,
-    StyleSuggestion,
     StyleSuggestionRequest,
     StyleSuggestionResponse,
     TaskResponse,
     TitleGenerationRequest,
     TitleGenerationResponse,
 )
-from backend.app.services.generation import generation_service
+from backend.app.services.generation import GenerationService
+from backend.app.services.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +28,9 @@ router = APIRouter(prefix="/generate", tags=["generate"])
 @router.post("/music", response_model=TaskResponse)
 async def generate_music(
     req: MusicGenerationRequest,
-    db: AsyncSession = Depends(get_db),
+    svc: GenerationService = Depends(get_generation_service),
 ):
-    gen = await generation_service.create_generation(
-        db=db,
+    gen = await svc.create_generation(
         prompt=req.prompt,
         duration=req.duration,
         genre=req.genre,
@@ -53,23 +50,17 @@ async def generate_music(
 
 
 @router.post("/lyrics", response_model=LyricsResponse)
-async def generate_lyrics(req: LyricsGenerationRequest):
-    provider, model = provider_manager.get_llm_provider("lyrics")
-    lyrics = await provider.generate_lyrics(
-        req.prompt,
-        model,
-        genre=req.genre,
-        mood=req.mood,
-        language=req.language,
+async def generate_lyrics(
+    req: LyricsGenerationRequest,
+    llm: LLMService = Depends(get_llm_service),
+):
+    lyrics = await llm.generate_lyrics(
+        req.prompt, genre=req.genre, mood=req.mood, language=req.language
     )
     # Try to include style suggestions alongside lyrics
     suggestions = None
     try:
-        suggestion_provider, suggestion_model = provider_manager.get_llm_provider(
-            "suggestion"
-        )
-        raw = await suggestion_provider.suggest_style(req.prompt, suggestion_model)
-        suggestions = StyleSuggestion(**raw)
+        suggestions = await llm.suggest_style(req.prompt)
     except Exception:
         logger.debug("Style suggestion alongside lyrics failed, skipping")
 
@@ -82,14 +73,11 @@ async def generate_lyrics(req: LyricsGenerationRequest):
 
 
 @router.post("/enhance-prompt", response_model=EnhancedPromptResponse)
-async def enhance_prompt(req: PromptEnhancementRequest):
-    provider, model = provider_manager.get_llm_provider("enhancement")
-    enhanced = await provider.enhance_prompt(
-        req.prompt,
-        model,
-        genre=req.genre,
-        mood=req.mood,
-    )
+async def enhance_prompt(
+    req: PromptEnhancementRequest,
+    llm: LLMService = Depends(get_llm_service),
+):
+    enhanced = await llm.enhance_prompt(req.prompt, genre=req.genre, mood=req.mood)
     return EnhancedPromptResponse(
         original_prompt=req.prompt,
         enhanced_prompt=enhanced,
@@ -97,22 +85,21 @@ async def enhance_prompt(req: PromptEnhancementRequest):
 
 
 @router.post("/suggest-style", response_model=StyleSuggestionResponse)
-async def suggest_style(req: StyleSuggestionRequest):
-    provider, model = provider_manager.get_llm_provider("suggestion")
-    raw = await provider.suggest_style(req.prompt, model)
-    suggestions = StyleSuggestion(**raw)
+async def suggest_style(
+    req: StyleSuggestionRequest,
+    llm: LLMService = Depends(get_llm_service),
+):
+    suggestions = await llm.suggest_style(req.prompt)
     return StyleSuggestionResponse(suggestions=suggestions)
 
 
 @router.post("/title", response_model=TitleGenerationResponse)
-async def generate_title(req: TitleGenerationRequest):
-    provider, model = provider_manager.get_llm_provider("suggestion")
-    title = await provider.generate_title(
-        model=model,
-        lyrics=req.lyrics,
-        genre=req.genre,
-        mood=req.mood,
-        prompt=req.prompt,
+async def generate_title(
+    req: TitleGenerationRequest,
+    llm: LLMService = Depends(get_llm_service),
+):
+    title = await llm.generate_title(
+        lyrics=req.lyrics, genre=req.genre, mood=req.mood, prompt=req.prompt
     )
     return TitleGenerationResponse(title=title)
 
@@ -120,11 +107,10 @@ async def generate_title(req: TitleGenerationRequest):
 @router.post("/cover-art", response_model=CoverArtResponse)
 async def generate_cover_art(
     req: CoverArtRequest,
-    db: AsyncSession = Depends(get_db),
+    svc: GenerationService = Depends(get_generation_service),
 ):
     try:
-        path, prompt_used = await generation_service.generate_cover_for_existing(
-            db=db,
+        path, prompt_used = await svc.generate_cover_for_existing(
             generation_id=req.generation_id,
             title=req.title,
             genre=req.genre,

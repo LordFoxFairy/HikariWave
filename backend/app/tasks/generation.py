@@ -40,48 +40,31 @@ def generate_music_task(self, task_id: str, params: dict):
 
 
 async def _run_generation(task_id: str, params: dict) -> None:
-    from sqlalchemy import select
-
-    from backend.app.db.session import async_session_factory
-    from backend.app.models.database import Generation
     from backend.app.providers.manager import provider_manager
     from backend.app.providers.music.base import MusicGenerationRequest
+    from backend.app.repositories.generation import generation_repository
 
-    async with async_session_factory() as db:
-        result = await db.execute(
-            select(Generation).where(Generation.task_id == task_id)
-        )
-        gen = result.scalar_one_or_none()
-        if gen is None:
-            raise ValueError(f"Generation not found: {task_id}")
+    await generation_repository.update_status(task_id, "processing")
 
-        gen.status = "processing"
-        await db.commit()
+    req = MusicGenerationRequest(**params)
+    provider = provider_manager.get_music_provider(req)
+    response = await provider.generate(req)
 
-        req = MusicGenerationRequest(**params)
-        provider = provider_manager.get_music_provider(req)
-        response = await provider.generate(req)
-
-        gen.status = "completed"
-        gen.audio_path = response.audio_path
-        gen.audio_format = response.format
-        gen.actual_duration = response.duration
-        gen.completed_at = datetime.now(UTC)
-        await db.commit()
+    await generation_repository.update_status(
+        task_id,
+        "completed",
+        audio_path=response.audio_path,
+        audio_format=response.format,
+        actual_duration=response.duration,
+        completed_at=datetime.now(UTC),
+    )
 
 
 async def _mark_failed(task_id: str, error: str) -> None:
-    from sqlalchemy import select
+    from backend.app.repositories.generation import generation_repository
 
-    from backend.app.db.session import async_session_factory
-    from backend.app.models.database import Generation
-
-    async with async_session_factory() as db:
-        result = await db.execute(
-            select(Generation).where(Generation.task_id == task_id)
-        )
-        gen = result.scalar_one_or_none()
-        if gen:
-            gen.status = "failed"
-            gen.error_message = error[:500]
-            await db.commit()
+    await generation_repository.update_status(
+        task_id,
+        "failed",
+        error_message=error[:500],
+    )
