@@ -20,12 +20,12 @@
   --color-accent-500: #f59e0b;
 
   --color-surface: #ffffff;
-  --color-surface-secondary: #f8f9fa;
-  --color-surface-tertiary: #f1f3f5;
-  --color-border: #e9ecef;
-  --color-border-light: #f1f3f5;
+  --color-surface-secondary: #fafafa;
+  --color-surface-tertiary: #f3f4f6;
+  --color-border: #e5e7eb;
+  --color-border-light: #f3f4f6;
 
-  --color-text-primary: #212529;
+  --color-text-primary: #111827;
   --color-text-secondary: #6b7280;
   --color-text-tertiary: #9ca3af;
 }
@@ -33,7 +33,7 @@
 body {
   margin: 0;
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
     "Roboto", "Oxygen", "Ubuntu", "Cantarell",
     "Fira Sans", "Droid Sans", "Helvetica Neue",
     sans-serif;
@@ -41,6 +41,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--color-surface-secondary);
   color: var(--color-text-primary);
+  font-feature-settings: "cv11", "ss01";
 }
 
 ::-webkit-scrollbar {
@@ -81,7 +82,7 @@ body {
   background: linear-gradient(
     90deg,
     transparent 25%,
-    rgba(139, 92, 246, 0.08) 50%,
+    rgba(139, 92, 246, 0.06) 50%,
     transparent 75%
   );
   background-size: 200% 100%;
@@ -96,11 +97,11 @@ body {
   animation: slide-up 0.3s ease-out;
 }
 
-/* Volume slider styling */
+/* ---- Volume slider ---- */
 input[type="range"].volume-slider {
   -webkit-appearance: none;
   appearance: none;
-  height: 4px;
+  height: 3px;
   border-radius: 2px;
   background: var(--color-border);
   outline: none;
@@ -115,15 +116,43 @@ input[type="range"].volume-slider::-webkit-slider-thumb {
   background: var(--color-primary-600);
   cursor: pointer;
   border: 2px solid white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
   transition: transform 0.15s;
 }
 
 input[type="range"].volume-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+  transform: scale(1.15);
 }
 
-/* Genre gradient helpers */
+/* ---- Range input (duration/tempo sliders) ---- */
+input[type="range"]:not(.volume-slider) {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  outline: none;
+}
+
+input[type="range"]:not(.volume-slider)::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-primary-600);
+  cursor: pointer;
+  border: 3px solid white;
+  box-shadow: 0 1px 4px rgba(124, 58, 237, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+input[type="range"]:not(.volume-slider)::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
+}
+
+/* ---- Genre gradient helpers ---- */
 .genre-gradient-electronic {
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
 }
@@ -144,4 +173,22 @@ input[type="range"].volume-slider::-webkit-slider-thumb:hover {
 }
 .genre-gradient-default {
   background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+
+/* ---- Lyrics panel scroll area ---- */
+.lyrics-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.lyrics-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lyrics-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-primary-200);
+  border-radius: 2px;
+}
+
+.lyrics-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-300);
 }
