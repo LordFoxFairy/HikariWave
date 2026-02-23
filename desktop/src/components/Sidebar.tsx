@@ -101,7 +101,7 @@ export default function Sidebar() {
               {active && (
                 <motion.div
                   layoutId="sidebar-active"
-                  className="absolute inset-0 bg-primary-50 rounded-lg"
+                  className="absolute inset-0 bg-primary-50 rounded-lg z-0"
                   transition={{
                     type: "spring",
                     duration: 0.35,

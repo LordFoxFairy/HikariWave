@@ -308,8 +308,8 @@ export default function SettingsPage() {
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
-          <p className="text-sm text-text-secondary mt-1">
+          <h1 className="text-[22px] font-bold text-text-primary tracking-tight">Settings</h1>
+          <p className="text-[13px] text-text-tertiary mt-1">
             Configure your HikariWave instance
           </p>
         </div>
@@ -589,6 +589,9 @@ export default function SettingsPage() {
             for music.
           </p>
         </motion.div>
+
+        {/* Bottom spacer for player clearance */}
+        <div className="h-20" />
       </div>
     </div>
   );

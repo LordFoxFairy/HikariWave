@@ -234,10 +234,20 @@ export default function HistoryPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-24">
-            <div className="w-6 h-6 border-2 border-primary-200
-                            border-t-primary-600 rounded-full
-                            animate-spin" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden animate-pulse">
+                <div className="h-24 bg-surface-tertiary" />
+                <div className="p-4 space-y-2.5">
+                  <div className="h-4 bg-surface-tertiary rounded-lg w-3/4" />
+                  <div className="flex gap-2">
+                    <div className="h-5 bg-surface-tertiary rounded-full w-16" />
+                    <div className="h-5 bg-surface-tertiary rounded-full w-14" />
+                  </div>
+                  <div className="h-3 bg-surface-tertiary rounded w-24" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : error ? (
           <motion.div
@@ -318,6 +328,8 @@ export default function HistoryPage() {
             </AnimatePresence>
           </div>
         )}
+        {/* Bottom spacer for player clearance */}
+        <div className="h-20" />
       </div>
     </div>
   );
@@ -478,7 +490,7 @@ function HistoryCard({
             {formatDate(gen.created_at)}
           </span>
           {/* Action buttons row */}
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+          <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-all">
             <button
               onClick={onExtend}
               title="Extend"

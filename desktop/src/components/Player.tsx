@@ -76,7 +76,7 @@ function Toast({
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className="fixed top-12 right-4 z-50 px-4 py-2.5 rounded-xl
+      className="fixed bottom-24 right-4 z-50 px-4 py-2.5 rounded-xl
                  bg-white border border-primary-200 text-[13px] text-primary-700
                  font-medium shadow-lg flex items-center gap-2"
     >
@@ -220,13 +220,12 @@ export default function Player() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        <motion.div
-          initial={{ y: 80, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: "spring", duration: 0.5, bounce: 0.15 }}
-          className="bg-white border-t border-border flex-shrink-0"
-        >
+      <motion.div
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", duration: 0.5, bounce: 0.15 }}
+        className="bg-white border-t border-border flex-shrink-0"
+      >
           {/* Lyrics panel (collapsible) */}
           <AnimatePresence>
             {showLyrics && (
@@ -414,8 +413,7 @@ export default function Player() {
               </AnimatePresence>
             </div>
           </div>
-        </motion.div>
-      </AnimatePresence>
+      </motion.div>
     </>
   );
 }

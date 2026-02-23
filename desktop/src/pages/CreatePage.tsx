@@ -100,6 +100,12 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/* Pre-computed random values for waveform animation to avoid jitter on re-render */
+const WAVEFORM_RANDOMS = Array.from({ length: 24 }, () => ({
+  height: 20 + Math.random() * 36,
+  duration: 0.8 + Math.random() * 0.5,
+}));
+
 /* -- Section animation -- */
 const sectionVariants = {
   hidden: { opacity: 0, y: 16 },
@@ -846,7 +852,9 @@ export default function CreatePage() {
 
         {/* ================================================================
             SECTION: Sound -- Duration, Tempo, Key, Instruments combined
+            Only shown in "custom" mode for a simpler default experience
            ================================================================ */}
+        {store.mode === "custom" && (
         <motion.div
           variants={sectionVariants}
           initial="hidden"
@@ -974,6 +982,7 @@ export default function CreatePage() {
             </div>
           </div>
         </motion.div>
+        )}
 
         {/* ================================================================
             SECTION: Generate Button
@@ -1018,15 +1027,15 @@ export default function CreatePage() {
               <div className="bg-white rounded-2xl border border-border shadow-md p-8 text-center">
                 {/* Animated waveform */}
                 <div className="flex items-center justify-center gap-[3px] mb-6 h-16">
-                  {Array.from({ length: 24 }).map((_, i) => (
+                  {WAVEFORM_RANDOMS.map((rand, i) => (
                     <motion.div
                       key={i}
                       className="w-1 bg-gradient-to-t from-primary-600 to-accent-400 rounded-full"
                       animate={{
-                        height: [6, 20 + Math.random() * 36, 6],
+                        height: [6, rand.height, 6],
                       }}
                       transition={{
-                        duration: 0.8 + Math.random() * 0.5,
+                        duration: rand.duration,
                         repeat: Infinity,
                         delay: i * 0.04,
                         ease: "easeInOut",
@@ -1401,7 +1410,7 @@ export default function CreatePage() {
         </AnimatePresence>
 
         {/* Bottom spacer for player clearance */}
-        <div className="h-6" />
+        <div className="h-20" />
       </div>
     </div>
   );
