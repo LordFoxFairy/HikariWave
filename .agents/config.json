@@ -1,0 +1,20 @@
+{
+  "providers": [
+    {
+      "name": "openrouter",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKey": "$OPENROUTER_API_KEY",
+      "models": [
+        "anthropic/claude-opus-4",
+        "anthropic/claude-sonnet-4",
+        "anthropic/claude-3.5-haiku"
+      ]
+    }
+  ],
+  "router": {
+    "opus": "openrouter:anthropic/claude-opus-4",
+    "sonnet": "openrouter:anthropic/claude-sonnet-4",
+    "haiku": "openrouter:anthropic/claude-3.5-haiku",
+    "default": "openrouter:anthropic/claude-sonnet-4"
+  }
+}

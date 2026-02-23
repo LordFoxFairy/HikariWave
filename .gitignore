@@ -1,0 +1,77 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# JetBrains eval
+.jbeval/
+
+# Generated audio files and data
+outputs/
+storage/
+data/
+*.wav
+*.mp3
+*.flac
+*.ogg
+
+# Logs
+*.log
+logs/
+
+# Temporary / draft files
+tmp/
+
+# Documentation drafts (docs/ is formal, tmp/ is drafts)
+docs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Redis
+dump.rdb
+
+# Node modules (desktop app)
+node_modules/
+desktop/dist/
+desktop/src-tauri/target/
+
+# Rust
+target/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
