@@ -29,7 +29,7 @@ class ProviderService:
         return provider_manager.get_music_config()
 
     def update_music_config(
-        self, providers: list[dict], router: dict[str, str],
+            self, providers: list[dict], router: dict[str, str],
     ) -> dict:
         """Update music config in memory and persist to config.yaml."""
         provider_manager.update_music_config(providers, router)
@@ -41,9 +41,8 @@ class ProviderService:
         yaml_providers = []
         for p in providers:
             entry: dict = {"name": p["name"]}
-            ptype = p.get("type", "local_gpu")
-            if ptype != "local_gpu":
-                entry["type"] = ptype
+            ptype = p.get("type", "huggingface")
+            entry["type"] = ptype
             if p.get("models"):
                 entry["models"] = p["models"]
             yaml_providers.append(entry)
@@ -85,7 +84,7 @@ class ProviderService:
         return provider_manager.get_llm_config()
 
     async def test_llm_connection(
-        self, provider_type: str, base_url: str, api_key: str, model: str
+            self, provider_type: str, base_url: str, api_key: str, model: str
     ) -> dict:
         """Test an LLM provider connection."""
         if provider_type == "ollama":
@@ -104,29 +103,31 @@ class ProviderService:
             }
 
         # For OpenRouter / OpenAI-compatible: try a simple completion
+        from langchain.chat_models import init_chat_model
         from langchain_core.messages import HumanMessage
-        from langchain_openai import ChatOpenAI
 
         try:
             test_model = model or "gpt-3.5-turbo"
-            llm = ChatOpenAI(
-                model=test_model,
-                openai_api_key=api_key or "no-key",
-                openai_api_base=base_url,
+            llm = init_chat_model(
+                test_model,
+                model_provider="openai",
+                api_key=api_key or "no-key",
+                base_url=base_url,
                 temperature=0,
                 max_tokens=5,
             )
             await llm.ainvoke([HumanMessage(content="ping")])
-            return {
-                "success": True,
-                "message": "Connection successful",
-                "models": [],
-            }
         except Exception as e:
             logger.warning("LLM connection test failed: %s", e)
             return {
                 "success": False,
                 "message": f"Connection failed: {e!s}",
+                "models": [],
+            }
+        else:
+            return {
+                "success": True,
+                "message": "Connection successful",
                 "models": [],
             }
 

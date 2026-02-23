@@ -24,7 +24,7 @@ class _ProgressTracker:
         """Called by snapshot_download as tqdm_class(...)."""
         instance = _ProgressTrackerInstance(self._progress)
         # tqdm is called with iterable or total as first arg
-        total = kwargs.get("total", None)
+        total = kwargs.get("total")
         if total is not None:
             instance._total = total
             self._progress.status = "downloading"
@@ -91,11 +91,11 @@ class ModelMarketplaceService:
         self._downloads: dict[str, DownloadProgress] = {}
 
     def search_models(
-        self,
-        query: str | None = None,
-        pipeline_tag: str | None = None,
-        sort: str = "downloads",
-        limit: int = 20,
+            self,
+            query: str | None = None,
+            pipeline_tag: str | None = None,
+            sort: str = "downloads",
+            limit: int = 20,
     ) -> list[HFModelInfo]:
         from huggingface_hub import HfApi
 
@@ -110,21 +110,19 @@ class ModelMarketplaceService:
 
         cached_ids = self._get_cached_ids()
 
-        results = []
-        for m in models:
-            results.append(
-                HFModelInfo(
-                    id=m.id,
-                    author=m.author,
-                    pipeline_tag=m.pipeline_tag,
-                    downloads=m.downloads or 0,
-                    likes=m.likes or 0,
-                    tags=list(m.tags) if m.tags else [],
-                    library_name=m.library_name,
-                    is_cached=m.id in cached_ids,
-                )
+        return [
+            HFModelInfo(
+                id=m.id,
+                author=m.author,
+                pipeline_tag=m.pipeline_tag,
+                downloads=m.downloads or 0,
+                likes=m.likes or 0,
+                tags=list(m.tags) if m.tags else [],
+                library_name=m.library_name,
+                is_cached=m.id in cached_ids,
             )
-        return results
+            for m in models
+        ]
 
     def get_model_info(self, repo_id: str) -> HFModelDetail:
         from huggingface_hub import HfApi
@@ -184,7 +182,8 @@ class ModelMarketplaceService:
             message="Queued",
         )
         self._downloads[download_id] = progress
-        asyncio.create_task(self._run_download(download_id, repo_id))
+        task = asyncio.create_task(self._run_download(download_id, repo_id))
+        task.add_done_callback(lambda _t: None)  # prevent GC of task
         return progress
 
     async def _run_download(self, download_id: str, repo_id: str):
@@ -221,18 +220,16 @@ class ModelMarketplaceService:
         from huggingface_hub import scan_cache_dir
 
         cache_info = scan_cache_dir()
-        results = []
-        for repo in cache_info.repos:
-            if repo.repo_type == "model":
-                results.append(
-                    CachedModelInfo(
-                        repo_id=repo.repo_id,
-                        size_str=repo.size_on_disk_str,
-                        nb_files=repo.nb_files,
-                        last_accessed=repo.last_accessed,
-                    )
-                )
-        return results
+        return [
+            CachedModelInfo(
+                repo_id=repo.repo_id,
+                size_str=repo.size_on_disk_str,
+                nb_files=repo.nb_files,
+                last_accessed=repo.last_accessed,
+            )
+            for repo in cache_info.repos
+            if repo.repo_type == "model"
+        ]
 
     def delete_cached_model(self, repo_id: str) -> bool:
         from huggingface_hub import scan_cache_dir

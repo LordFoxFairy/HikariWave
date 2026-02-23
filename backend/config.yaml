@@ -1,6 +1,7 @@
 llm:
   providers:
     - name: openrouter
+      type: openrouter
       base_url: https://openrouter.ai/api/v1
       api_key: ${OPENROUTER_API_KEY}
       models:
@@ -13,27 +14,23 @@ llm:
     enhancement: openrouter:anthropic/claude-opus-4
     suggestion: openrouter:anthropic/claude-sonnet-4
     cover_art: openrouter:anthropic/claude-sonnet-4
-
 music:
   providers:
-    - name: local
-      type: local_gpu
+    - name: huggingface
+      type: huggingface
       models:
         - name: musicgen-small
           model_id: facebook/musicgen-small
         - name: musicgen-medium
           model_id: facebook/musicgen-medium
-        - name: ace-step-v1
-          model_id: ACE-Step/ACE-Step-v1-3.5B
+        - name: stable-audio
+          model_id: stabilityai/stable-audio-open-1.0
   router:
-    default: local:ace-step-v1
-    vocal: local:ace-step-v1
-    instrumental: local:musicgen-small
-
+    default: huggingface:musicgen-small
 image:
   providers:
     - name: together
-      type: api
+      type: together
       api_key: ${TOGETHER_API_KEY}
       base_url: https://api.together.xyz/v1/images/generations
       models:

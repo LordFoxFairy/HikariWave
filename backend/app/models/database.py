@@ -52,7 +52,7 @@ class Generation(Base):
     cover_art_path = Column(String, nullable=True)
     cover_art_prompt = Column(String, nullable=True)
 
-    # Lineage (extend / remix)
+    # Lineage -- extend or remix
     parent_id = Column(Integer, ForeignKey("generations.id"), nullable=True)
     parent_type = Column(String, nullable=True)
 
@@ -68,15 +68,3 @@ class Generation(Base):
     error_message = Column(String, nullable=True)
     created_at = Column(DateTime, default=_utcnow)
     completed_at = Column(DateTime, nullable=True)
-
-
-class ProviderConfig(Base):
-    __tablename__ = "provider_configs"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
-    provider_type = Column(String, nullable=False)
-    config = Column(JSON, nullable=False)
-    is_active = Column(Integer, default=0)
-    created_at = Column(DateTime, default=_utcnow)
-    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)

@@ -29,8 +29,8 @@ router = APIRouter(prefix="/generate", tags=["generate"])
 
 @router.post("/music", response_model=TaskResponse)
 async def generate_music(
-    req: MusicGenerationRequest,
-    svc: GenerationService = Depends(get_generation_service),
+        req: MusicGenerationRequest,
+        svc: GenerationService = Depends(get_generation_service),
 ):
     gen = await svc.create_generation(
         prompt=req.prompt,
@@ -53,8 +53,8 @@ async def generate_music(
 
 @router.post("/extend", response_model=TaskResponse)
 async def extend_generation(
-    req: ExtendRequest,
-    svc: GenerationService = Depends(get_generation_service),
+        req: ExtendRequest,
+        svc: GenerationService = Depends(get_generation_service),
 ):
     try:
         gen = await svc.extend_generation(
@@ -70,8 +70,8 @@ async def extend_generation(
 
 @router.post("/remix", response_model=TaskResponse)
 async def remix_generation(
-    req: RemixRequest,
-    svc: GenerationService = Depends(get_generation_service),
+        req: RemixRequest,
+        svc: GenerationService = Depends(get_generation_service),
 ):
     try:
         gen = await svc.remix_generation(
@@ -90,8 +90,8 @@ async def remix_generation(
 
 @router.post("/lyrics", response_model=LyricsResponse)
 async def generate_lyrics(
-    req: LyricsGenerationRequest,
-    llm: LLMService = Depends(get_llm_service),
+        req: LyricsGenerationRequest,
+        llm: LLMService = Depends(get_llm_service),
 ):
     lyrics = await llm.generate_lyrics(
         req.prompt, genre=req.genre, mood=req.mood, language=req.language
@@ -113,8 +113,8 @@ async def generate_lyrics(
 
 @router.post("/enhance-prompt", response_model=EnhancedPromptResponse)
 async def enhance_prompt(
-    req: PromptEnhancementRequest,
-    llm: LLMService = Depends(get_llm_service),
+        req: PromptEnhancementRequest,
+        llm: LLMService = Depends(get_llm_service),
 ):
     enhanced = await llm.enhance_prompt(req.prompt, genre=req.genre, mood=req.mood)
     return EnhancedPromptResponse(
@@ -125,8 +125,8 @@ async def enhance_prompt(
 
 @router.post("/suggest-style", response_model=StyleSuggestionResponse)
 async def suggest_style(
-    req: StyleSuggestionRequest,
-    llm: LLMService = Depends(get_llm_service),
+        req: StyleSuggestionRequest,
+        llm: LLMService = Depends(get_llm_service),
 ):
     suggestions = await llm.suggest_style(req.prompt)
     return StyleSuggestionResponse(suggestions=suggestions)
@@ -134,8 +134,8 @@ async def suggest_style(
 
 @router.post("/title", response_model=TitleGenerationResponse)
 async def generate_title(
-    req: TitleGenerationRequest,
-    llm: LLMService = Depends(get_llm_service),
+        req: TitleGenerationRequest,
+        llm: LLMService = Depends(get_llm_service),
 ):
     title = await llm.generate_title(
         lyrics=req.lyrics, genre=req.genre, mood=req.mood, prompt=req.prompt
@@ -145,8 +145,8 @@ async def generate_title(
 
 @router.post("/cover-art", response_model=CoverArtResponse)
 async def generate_cover_art(
-    req: CoverArtRequest,
-    svc: GenerationService = Depends(get_generation_service),
+        req: CoverArtRequest,
+        svc: GenerationService = Depends(get_generation_service),
 ):
     try:
         path, prompt_used = await svc.generate_cover_for_existing(

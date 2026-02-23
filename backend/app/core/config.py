@@ -37,7 +37,7 @@ def load_yaml_config(path: Path | None = None) -> dict:
     config_path = path or CONFIG_PATH
     if not config_path.exists():
         return {}
-    with open(config_path) as f:
+    with config_path.open() as f:
         raw = yaml.safe_load(f) or {}
     return _walk_and_resolve(raw)
 
@@ -47,12 +47,12 @@ def load_raw_yaml_config(path: Path | None = None) -> dict:
     config_path = path or CONFIG_PATH
     if not config_path.exists():
         return {}
-    with open(config_path) as f:
+    with config_path.open() as f:
         return yaml.safe_load(f) or {}
 
 
 def save_yaml_config(config: dict, path: Path | None = None) -> None:
     """Save config dict back to config.yaml."""
     config_path = path or CONFIG_PATH
-    with open(config_path, "w") as f:
+    with config_path.open("w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
