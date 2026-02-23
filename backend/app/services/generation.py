@@ -331,7 +331,7 @@ class GenerationService:
                 await self._repo.update_status(
                     task_id,
                     "failed",
-                    error_message=str(exc)[:500],
+                    error_message=(str(exc) or type(exc).__name__)[:500],
                     progress=0,
                     progress_message="Generation failed",
                 )

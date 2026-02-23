@@ -312,8 +312,14 @@ class HuggingFaceMusicProvider(BaseMusicProvider):
                 },
             )
 
-            audio_np = result[0]["audio"]
-            sample_rate = result[0]["sampling_rate"]
+            # The pipeline may return a dict or a list of dicts depending
+            # on the transformers version.  Handle both formats.
+            if isinstance(result, list):
+                audio_np = result[0]["audio"]
+                sample_rate = result[0]["sampling_rate"]
+            else:
+                audio_np = result["audio"]
+                sample_rate = result["sampling_rate"]
 
             # Ensure shape is (samples,) or (samples, channels)
             if audio_np.ndim == 2 and audio_np.shape[0] < audio_np.shape[1]:
