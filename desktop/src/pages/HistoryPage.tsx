@@ -61,6 +61,7 @@ type SortKey = "date" | "name";
 export default function HistoryPage() {
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("date");
   const play = usePlayerStore((s) => s.play);
@@ -131,21 +132,22 @@ export default function HistoryPage() {
     }
   }, []);
 
-  useEffect(() => {
-    loadGenerations();
-  }, []);
-
-  const loadGenerations = async () => {
+  const loadGenerations = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.getGenerations();
       setGenerations(data);
     } catch {
-      // Backend might not be running
+      setError("Could not load tracks. Check that the backend is running.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadGenerations();
+  }, [loadGenerations]);
 
   const handleDelete = async (id: number) => {
     try {
@@ -237,6 +239,33 @@ export default function HistoryPage() {
                             border-t-primary-600 rounded-full
                             animate-spin" />
           </div>
+        ) : error ? (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-24"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-red-50
+                            flex items-center justify-center
+                            mx-auto mb-4 border border-red-100">
+              <Music className="w-7 h-7 text-red-400" />
+            </div>
+            <p className="text-text-primary font-semibold mb-1">
+              Connection Error
+            </p>
+            <p className="text-text-tertiary text-[13px] mb-5">
+              {error}
+            </p>
+            <button
+              onClick={loadGenerations}
+              className="inline-flex items-center gap-2 px-5 py-2.5
+                         rounded-xl bg-primary-600 text-white
+                         text-sm font-medium hover:bg-primary-700
+                         transition-colors cursor-pointer shadow-sm"
+            >
+              Retry
+            </button>
+          </motion.div>
         ) : filtered.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 12 }}

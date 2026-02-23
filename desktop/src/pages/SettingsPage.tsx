@@ -25,6 +25,7 @@ export default function SettingsPage() {
 
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
   const [testing, setTesting] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [llmProviders, setLlmProviders] = useState<ProviderInfo[]>(
     [],
   );
@@ -42,17 +43,18 @@ export default function SettingsPage() {
         if (!cancelled) setHealthOk(false);
       }
       try {
-        // api.getProviders() already extracts .providers from the response
         const [llm, music] = await Promise.all([
           api.getProviders("llm"),
           api.getProviders("music"),
         ]);
         if (!cancelled) {
-          setLlmProviders(llm);
-          setMusicProviders(music);
+          setLlmProviders(Array.isArray(llm) ? llm : []);
+          setMusicProviders(Array.isArray(music) ? music : []);
         }
       } catch {
         /* backend might not be running */
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -147,7 +149,12 @@ export default function SettingsPage() {
           className="bg-white rounded-xl border border-border
                      shadow-sm p-5"
         >
-          {llmProviders.length > 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-4 h-4 animate-spin text-text-tertiary" />
+              <span className="text-sm text-text-tertiary ml-2">Loading providers...</span>
+            </div>
+          ) : llmProviders.length > 0 ? (
             <div className="space-y-2">
               {llmProviders.map((p) => (
                 <ProviderCard
@@ -160,7 +167,9 @@ export default function SettingsPage() {
             </div>
           ) : (
             <p className="text-sm text-text-tertiary">
-              Connect to backend to see providers
+              {healthOk === false
+                ? "Backend not reachable -- check the URL and start the backend"
+                : "Connect to backend to see providers"}
             </p>
           )}
         </motion.div>
@@ -174,7 +183,12 @@ export default function SettingsPage() {
           className="bg-white rounded-xl border border-border
                      shadow-sm p-5"
         >
-          {musicProviders.length > 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-4 h-4 animate-spin text-text-tertiary" />
+              <span className="text-sm text-text-tertiary ml-2">Loading providers...</span>
+            </div>
+          ) : musicProviders.length > 0 ? (
             <div className="space-y-2">
               {musicProviders.map((p) => (
                 <ProviderCard
@@ -187,7 +201,9 @@ export default function SettingsPage() {
             </div>
           ) : (
             <p className="text-sm text-text-tertiary">
-              Connect to backend to see providers
+              {healthOk === false
+                ? "Backend not reachable -- check the URL and start the backend"
+                : "Connect to backend to see providers"}
             </p>
           )}
         </motion.div>
@@ -287,7 +303,7 @@ function ProviderCard({
       <div className="flex-1 min-w-0">
         <span className="font-medium">{provider.name}</span>
         <p className="text-xs text-text-tertiary truncate mt-0.5">
-          {provider.models.join(", ")}
+          {(provider.models ?? []).join(", ") || "No models listed"}
         </p>
       </div>
       {selected && (

@@ -125,6 +125,11 @@ export default function Player() {
     }
   }, [showFormatMenu]);
 
+  const volumeRef = useRef(volume);
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
+
   const initWaveSurfer = useCallback(() => {
     if (!waveformRef.current) return;
     if (wsRef.current) {
@@ -146,10 +151,10 @@ export default function Player() {
       setCurrentTime(ws.getCurrentTime()),
     );
     ws.on("finish", () => setIsPlaying(false));
-    ws.setVolume(volume);
+    ws.setVolume(volumeRef.current);
     wsRef.current = ws;
     return ws;
-  }, [setDuration, setCurrentTime, setIsPlaying, volume]);
+  }, [setDuration, setCurrentTime, setIsPlaying]);
 
   useEffect(() => {
     if (!currentTrack?.audio_path) return;

@@ -15,7 +15,7 @@ import type {
   CoverArtResponse,
 } from "../types";
 
-const DEFAULT_BASE_URL = "http://127.0.0.1:8000/api/v1";
+const DEFAULT_BASE_URL = "http://127.0.0.1:23456/api/v1";
 
 let baseUrl = DEFAULT_BASE_URL;
 
@@ -116,7 +116,7 @@ export const api = {
 
   getCoverArtUrl(coverPath: string) {
     const basename = coverPath.split("/").pop() || coverPath;
-    return `${baseUrl}/cover/${basename}`;
+    return `${baseUrl}/covers/${basename}`;
   },
 
   extendSong(data: ExtendRequest) {

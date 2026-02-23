@@ -334,7 +334,16 @@ export default function CreatePage() {
   }, [store]);
 
   /* -- Task polling -- */
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
+
   const pollTask = useCallback((taskId: string) => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     const interval = setInterval(async () => {
       try {
         const gen = await api.getTaskStatus(taskId);
@@ -345,20 +354,24 @@ export default function CreatePage() {
           store.setSuccessMessage("Music generated successfully!");
           setProgressMessage("");
           clearInterval(interval);
+          pollIntervalRef.current = null;
           setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
         } else if (gen.status === "failed") {
           store.setGenerationStatus("failed");
           store.setErrorMessage(gen.error_message || "Generation failed.");
           setProgressMessage("");
           clearInterval(interval);
+          pollIntervalRef.current = null;
         }
       } catch {
         clearInterval(interval);
+        pollIntervalRef.current = null;
         store.setGenerationStatus("failed");
         store.setErrorMessage("Lost connection during generation.");
         setProgressMessage("");
       }
     }, 2000);
+    pollIntervalRef.current = interval;
   }, [store]);
 
   /* -- Generate music -- */
