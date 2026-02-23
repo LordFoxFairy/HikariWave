@@ -33,6 +33,8 @@ class GenerationService:
         enhance_prompt: bool = True,
         generate_lyrics: bool = False,
         generate_cover: bool = True,
+        parent_id: int | None = None,
+        parent_type: str | None = None,
     ) -> Generation:
         task_id = uuid.uuid4().hex
         llm_provider_name: str | None = None
@@ -92,6 +94,8 @@ class GenerationService:
             instrumental=1 if instrumental else 0,
             llm_provider=llm_provider_name,
             music_provider=music_provider.config.name,
+            parent_id=parent_id,
+            parent_type=parent_type,
         )
 
         # Dispatch generation as an async background task
@@ -101,6 +105,78 @@ class GenerationService:
 
         return gen
 
+    async def extend_generation(
+        self,
+        generation_id: int,
+        prompt: str | None = None,
+        lyrics: str | None = None,
+        duration: float = 30.0,
+    ) -> Generation:
+        """Create a new generation that extends an existing one."""
+        parent = await self._repo.get_by_id(generation_id)
+        if parent is None:
+            raise ValueError(f"Generation {generation_id} not found")
+
+        return await self.create_generation(
+            prompt=prompt or (parent.prompt + " (continuation)"),
+            duration=duration,
+            genre=parent.genre,
+            mood=parent.mood,
+            lyrics=lyrics or parent.lyrics,
+            title=parent.title,
+            tempo=parent.tempo,
+            musical_key=parent.musical_key,
+            instruments=parent.instruments,
+            language=parent.language or "en",
+            instrumental=bool(parent.instrumental),
+            enhance_prompt=True,
+            generate_lyrics=False,
+            generate_cover=True,
+            parent_id=parent.id,
+            parent_type="extend",
+        )
+
+    async def remix_generation(
+        self,
+        generation_id: int,
+        genre: str | None = None,
+        mood: str | None = None,
+        tempo: int | None = None,
+        musical_key: str | None = None,
+        instruments: list[str] | None = None,
+        prompt: str | None = None,
+    ) -> Generation:
+        """Create a remix/variation of an existing generation."""
+        parent = await self._repo.get_by_id(generation_id)
+        if parent is None:
+            raise ValueError(f"Generation {generation_id} not found")
+
+        return await self.create_generation(
+            prompt=prompt or parent.prompt,
+            duration=parent.duration or 30.0,
+            genre=genre or parent.genre,
+            mood=mood or parent.mood,
+            lyrics=parent.lyrics,
+            title=parent.title,
+            tempo=tempo or parent.tempo,
+            musical_key=musical_key or parent.musical_key,
+            instruments=instruments or parent.instruments,
+            language=parent.language or "en",
+            instrumental=bool(parent.instrumental),
+            enhance_prompt=True,
+            generate_lyrics=False,
+            generate_cover=True,
+            parent_id=parent.id,
+            parent_type="remix",
+        )
+
+    async def toggle_like(self, generation_id: int) -> bool:
+        """Toggle like status for a generation. Returns new is_liked state."""
+        gen = await self._repo.toggle_like(generation_id)
+        if gen is None:
+            raise ValueError(f"Generation {generation_id} not found")
+        return bool(gen.is_liked)
+
     async def _run_generation_background(
         self,
         task_id: str,
@@ -109,10 +185,30 @@ class GenerationService:
     ) -> None:
         """Run music generation in background and update DB record via repository."""
         try:
-            await self._repo.update_status(task_id, "processing", progress=10)
+            await self._repo.update_status(
+                task_id,
+                "processing",
+                progress=10,
+                progress_message="Starting generation...",
+            )
+
+            await self._repo.update_status(
+                task_id,
+                "processing",
+                progress=30,
+                progress_message="Generating audio...",
+            )
 
             provider = provider_manager.get_music_provider(music_req)
             response = await provider.generate(music_req)
+
+            if generate_cover:
+                await self._repo.update_status(
+                    task_id,
+                    "processing",
+                    progress=70,
+                    progress_message="Generating cover art...",
+                )
 
             await self._repo.update_status(
                 task_id,
@@ -121,6 +217,7 @@ class GenerationService:
                 audio_format=response.format,
                 actual_duration=response.duration,
                 progress=100,
+                progress_message="Complete!",
                 completed_at=datetime.now(UTC),
             )
             logger.info("Generation completed: task_id=%s", task_id)
@@ -139,6 +236,7 @@ class GenerationService:
                     "failed",
                     error_message=str(exc)[:500],
                     progress=0,
+                    progress_message="Generation failed",
                 )
             except Exception:
                 logger.exception("Failed to mark generation as failed: %s", task_id)

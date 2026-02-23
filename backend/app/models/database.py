@@ -58,6 +58,10 @@ class Generation(Base):
 
     # Progress
     progress = Column(Integer, default=0)
+    progress_message = Column(String, nullable=True)
+
+    # User interaction
+    is_liked = Column(Integer, default=0)
 
     # Metadata
     generation_params = Column(JSON, default=dict)

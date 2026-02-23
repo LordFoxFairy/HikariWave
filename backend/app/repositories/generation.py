@@ -131,5 +131,34 @@ class GenerationRepository:
             await db.refresh(gen)
             return gen
 
+    async def update_by_id(
+        self, generation_id: int, **fields: Any
+    ) -> Generation | None:
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(Generation).where(Generation.id == generation_id)
+            )
+            gen = result.scalar_one_or_none()
+            if gen is None:
+                return None
+            for key, value in fields.items():
+                setattr(gen, key, value)
+            await db.commit()
+            await db.refresh(gen)
+            return gen
+
+    async def toggle_like(self, generation_id: int) -> Generation | None:
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(Generation).where(Generation.id == generation_id)
+            )
+            gen = result.scalar_one_or_none()
+            if gen is None:
+                return None
+            gen.is_liked = 0 if gen.is_liked else 1
+            await db.commit()
+            await db.refresh(gen)
+            return gen
+
 
 generation_repository = GenerationRepository()

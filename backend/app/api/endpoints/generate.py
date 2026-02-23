@@ -7,10 +7,12 @@ from backend.app.schemas.generation import (
     CoverArtRequest,
     CoverArtResponse,
     EnhancedPromptResponse,
+    ExtendRequest,
     LyricsGenerationRequest,
     LyricsResponse,
     MusicGenerationRequest,
     PromptEnhancementRequest,
+    RemixRequest,
     StyleSuggestionRequest,
     StyleSuggestionResponse,
     TaskResponse,
@@ -46,6 +48,43 @@ async def generate_music(
         generate_lyrics=req.generate_lyrics,
         generate_cover=req.generate_cover,
     )
+    return TaskResponse(task_id=gen.task_id, status=gen.status)
+
+
+@router.post("/extend", response_model=TaskResponse)
+async def extend_generation(
+    req: ExtendRequest,
+    svc: GenerationService = Depends(get_generation_service),
+):
+    try:
+        gen = await svc.extend_generation(
+            generation_id=req.generation_id,
+            prompt=req.prompt,
+            lyrics=req.lyrics,
+            duration=req.duration,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return TaskResponse(task_id=gen.task_id, status=gen.status)
+
+
+@router.post("/remix", response_model=TaskResponse)
+async def remix_generation(
+    req: RemixRequest,
+    svc: GenerationService = Depends(get_generation_service),
+):
+    try:
+        gen = await svc.remix_generation(
+            generation_id=req.generation_id,
+            genre=req.genre,
+            mood=req.mood,
+            tempo=req.tempo,
+            musical_key=req.musical_key,
+            instruments=req.instruments,
+            prompt=req.prompt,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     return TaskResponse(task_id=gen.task_id, status=gen.status)
 
 

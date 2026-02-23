@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.app.api.dependencies import get_generation_service
-from backend.app.schemas.generation import GenerationListResponse, GenerationResponse
+from backend.app.schemas.generation import (
+    GenerationListResponse,
+    GenerationResponse,
+    LikeResponse,
+)
 from backend.app.services.generation import GenerationService
 
 router = APIRouter(prefix="/generations", tags=["history"])
@@ -38,3 +42,15 @@ async def delete_generation(
         raise HTTPException(status_code=404, detail="Generation not found")
     await svc.delete_generation(generation_id)
     return {"detail": "deleted"}
+
+
+@router.post("/{generation_id}/toggle-like", response_model=LikeResponse)
+async def toggle_like(
+    generation_id: int,
+    svc: GenerationService = Depends(get_generation_service),
+):
+    try:
+        is_liked = await svc.toggle_like(generation_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return LikeResponse(generation_id=generation_id, is_liked=is_liked)

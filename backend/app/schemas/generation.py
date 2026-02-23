@@ -55,6 +55,26 @@ class CoverArtResponse(BaseModel):
     prompt_used: str
 
 
+# --- Extend / Remix ---
+
+
+class ExtendRequest(BaseModel):
+    generation_id: int
+    prompt: str | None = None
+    lyrics: str | None = None
+    duration: float = Field(default=30.0, ge=1.0, le=300.0)
+
+
+class RemixRequest(BaseModel):
+    generation_id: int
+    genre: str | None = None
+    mood: str | None = None
+    tempo: int | None = Field(default=None, ge=40, le=240)
+    musical_key: str | None = None
+    instruments: list[str] | None = None
+    prompt: str | None = None
+
+
 # --- Music Generation ---
 
 
@@ -144,6 +164,8 @@ class GenerationResponse(BaseModel):
     audio_format: str = "wav"
     actual_duration: float | None = None
     progress: int = 0
+    progress_message: str | None = None
+    is_liked: bool = False
     parent_id: int | None = None
     parent_type: str | None = None
     error_message: str | None = None
@@ -152,6 +174,14 @@ class GenerationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- Like ---
+
+
+class LikeResponse(BaseModel):
+    generation_id: int
+    is_liked: bool
 
 
 class GenerationListResponse(BaseModel):

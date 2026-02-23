@@ -25,6 +25,7 @@ async def task_progress_ws(websocket: WebSocket, task_id: str):
                 "task_id": task_id,
                 "status": gen.status,
                 "progress": gen.progress or 0,
+                "message": gen.progress_message or "",
             }
             if gen.status == "completed":
                 payload["audio_path"] = gen.audio_path
