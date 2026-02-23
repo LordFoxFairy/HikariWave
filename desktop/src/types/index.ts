@@ -75,6 +75,20 @@ export interface ProviderInfo {
   is_active: boolean;
 }
 
+export interface MusicConfig {
+  genres: string[];
+  moods: string[];
+  duration: number;
+  tempo: number;
+  musicalKey: string;
+  instruments: string[];
+  language: string;
+  instrumental: boolean;
+}
+
+export type CreateMode = "smart" | "custom";
+export type CreateStep = "input" | "config" | "preview" | "generating" | "result";
+
 export interface AppSettings {
   backendUrl: string;
   llmProvider: string;
