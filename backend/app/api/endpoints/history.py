@@ -13,16 +13,16 @@ router = APIRouter(prefix="/generations", tags=["history"])
 
 @router.get("", response_model=GenerationListResponse)
 async def list_generations(
-        offset: int = Query(0, ge=0),
-        limit: int = Query(50, ge=1, le=200),
-        search: str | None = None,
-        is_liked: bool | None = None,
-        genre: str | None = None,
-        mood: str | None = None,
-        status: str | None = None,
-        sort: str = "created_at",
-        sort_dir: str = "desc",
-        svc: GenerationService = Depends(get_generation_service),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    search: str | None = None,
+    is_liked: bool | None = None,
+    genre: str | None = None,
+    mood: str | None = None,
+    status: str | None = None,
+    sort: str = "created_at",
+    sort_dir: str = "desc",
+    svc: GenerationService = Depends(get_generation_service),
 ):
     items, total = await svc.list_generations(
         offset=offset,
@@ -40,8 +40,8 @@ async def list_generations(
 
 @router.get("/{generation_id}", response_model=GenerationResponse)
 async def get_generation(
-        generation_id: int,
-        svc: GenerationService = Depends(get_generation_service),
+    generation_id: int,
+    svc: GenerationService = Depends(get_generation_service),
 ):
     gen = await svc.get_generation(generation_id)
     if gen is None:
@@ -51,8 +51,8 @@ async def get_generation(
 
 @router.delete("/{generation_id}")
 async def delete_generation(
-        generation_id: int,
-        svc: GenerationService = Depends(get_generation_service),
+    generation_id: int,
+    svc: GenerationService = Depends(get_generation_service),
 ):
     gen = await svc.get_generation(generation_id)
     if gen is None:
@@ -63,8 +63,8 @@ async def delete_generation(
 
 @router.post("/{generation_id}/toggle-like", response_model=LikeResponse)
 async def toggle_like(
-        generation_id: int,
-        svc: GenerationService = Depends(get_generation_service),
+    generation_id: int,
+    svc: GenerationService = Depends(get_generation_service),
 ):
     try:
         is_liked = await svc.toggle_like(generation_id)

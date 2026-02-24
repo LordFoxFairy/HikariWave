@@ -1,13 +1,13 @@
 llm:
   providers:
-    - name: openrouter
-      type: openrouter
-      base_url: https://openrouter.ai/api/v1
-      api_key: ${OPENROUTER_API_KEY}
-      models:
-        - anthropic/claude-opus-4
-        - anthropic/claude-sonnet-4
-        - anthropic/claude-3.5-haiku
+  - name: openrouter
+    type: openrouter
+    base_url: https://openrouter.ai/api/v1
+    api_key: ${OPENROUTER_API_KEY}
+    models:
+    - anthropic/claude-opus-4
+    - anthropic/claude-sonnet-4
+    - anthropic/claude-3.5-haiku
   router:
     default: openrouter:anthropic/claude-sonnet-4
     lyrics: openrouter:anthropic/claude-sonnet-4
@@ -16,26 +16,44 @@ llm:
     cover_art: openrouter:anthropic/claude-sonnet-4
 music:
   providers:
-    - name: huggingface
-      type: huggingface
-      models:
-        - name: musicgen-small
-          model_id: facebook/musicgen-small
-        - name: musicgen-medium
-          model_id: facebook/musicgen-medium
-        - name: stable-audio
-          model_id: stabilityai/stable-audio-open-1.0
+  - name: huggingface
+    type: huggingface
+    models:
+    - name: musicgen-small
+      model_id: facebook/musicgen-small
+    - name: musicgen-medium
+      model_id: facebook/musicgen-medium
+    - name: stable-audio
+      model_id: stabilityai/stable-audio-open-1.0
+    - name: audioldm2-music
+      model_id: cvssp/audioldm2-music
+  - name: diffrhythm
+    type: huggingface
+    models:
+    - name: diffrhythm-full
+      model_id: ASLP-lab/DiffRhythm-1_2-full
+    - name: diffrhythm-base
+      model_id: ASLP-lab/DiffRhythm-1_2
+  - name: acestep
+    type: acestep
+    models:
+    - name: ace-step-v1.5
+      model_id: ACE-Step/Ace-Step1.5
+      model_kwargs:
+        subfolder: acestep-v15-turbo
+  - name: acestep-official
+    type: acestep
+    label: official
+    models:
+    - name: ace-step-v1.5
+      model_kwargs:
+        config_path: acestep-v15-turbo
+        device: auto
+        use_mlx_dit: true
+  - name: heartmula
+    type: huggingface
+    models:
+    - name: heartmula-3b
+      model_id: HeartMuLa/HeartMuLa-oss-3B
   router:
-    default: huggingface:musicgen-small
-image:
-  providers:
-    - name: together
-      type: together
-      api_key: ${TOGETHER_API_KEY}
-      base_url: https://api.together.xyz/v1/images/generations
-      models:
-        - black-forest-labs/FLUX.1-schnell
-      default_width: 1024
-      default_height: 1024
-  router:
-    default: together:black-forest-labs/FLUX.1-schnell
+    default: acestep-official:ace-step-v1.5

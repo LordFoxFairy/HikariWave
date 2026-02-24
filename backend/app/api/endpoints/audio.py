@@ -23,11 +23,12 @@ SUPPORTED_FORMATS = {"mp3", "flac", "ogg", "wav"}
 
 @router.get("/{file_id:path}")
 async def stream_audio(
-        file_id: str,
-        audio_format: str | None = Query(
-            None, alias="format",
-            description="Convert to: mp3, flac, ogg, wav",
-        ),
+    file_id: str,
+    audio_format: str | None = Query(
+        None,
+        alias="format",
+        description="Convert to: mp3, flac, ogg, wav",
+    ),
 ):
     # Extract basename to prevent path traversal attacks.
     # The frontend may send a full path or just a filename.

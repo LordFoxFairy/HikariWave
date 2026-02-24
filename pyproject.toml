@@ -2,7 +2,8 @@
 name = "hikariwave"
 version = "0.1.0"
 description = "HikariWave - AI Music Generation Platform"
-requires-python = ">=3.13"
+readme = "README.md"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
@@ -18,22 +19,26 @@ dependencies = [
     "httpx>=0.28.0",
     "pydub>=0.25.0",
     "soundfile>=0.12.0",
-    "huggingface_hub>=0.25.0",
+    "huggingface-hub>=0.24.0",
+    "mutagen>=1.47.0",
+    "numpy",
 ]
 
 [project.optional-dependencies]
-gpu = [
-    "torch>=2.0.0",
-    "torchaudio>=2.0.0",
-    "transformers>=4.40.0",
-    "diffusers>=0.30.0",
-    "accelerate>=0.30.0",
-    "scipy>=1.12.0",
+# Base GPU support — needed for all HuggingFace music models
+gpu = []
+# ACE-Step v1.5 vocal music generation
+# Usage: uv sync --extra ace-step
+ace-step = [
+    "ace-step @ git+https://ghfast.top/https://github.com/ACE-Step/ACE-Step-1.5.git",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]
@@ -51,7 +56,7 @@ dev = [
 ]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py312"
 line-length = 88
 src = ["backend"]
 
@@ -83,28 +88,23 @@ select = [
     "COM818", # trailing comma on bare tuple
 ]
 ignore = [
-    "B008",    # Depends() / Query() in FastAPI defaults — standard pattern
-    "B904",    # raise-without-from — too noisy for re-raises in except blocks
-    "PLC0415", # import-not-at-top — intentional lazy imports for heavy deps
-    "TRY003",  # raise-vanilla-args — we use inline messages for clarity
-    "TRY400",  # error-instead-of-exception in logging — stylistic
-    "RET504",  # unnecessary-assign — sometimes aids readability
-    "S110",    # try-except-pass — intentional in cleanup code
-    "SIM105",  # use-contextlib-suppress — explicit try/except is clearer
-    "SIM108",  # use-ternary — multi-line if/else is often more readable
-    "PLW2901", # redefined-loop-name — common pattern in transforms
+    "B008",    # Depends() / Query() in FastAPI defaults
+    "B904",    # raise-without-from
+    "PLC0415", # import-not-at-top — lazy imports for heavy deps
+    "TRY003",  # raise-vanilla-args
+    "TRY400",  # error-instead-of-exception in logging
+    "RET504",  # unnecessary-assign
+    "S110",    # try-except-pass
+    "SIM105",  # use-contextlib-suppress
+    "SIM108",  # use-ternary
+    "PLW2901", # redefined-loop-name
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"backend/app/api/endpoints/*.py" = [
-    "S113",    # request-without-timeout — FastAPI handles timeouts
-]
-"backend/app/providers/music/huggingface.py" = [
-    "TRY300",  # complex multi-branch try blocks with early returns
-]
-"backend/tests/**" = [
-    "S101",    # assert in tests is expected
-]
+"backend/app/api/endpoints/*.py" = ["S113"]
+"backend/app/providers/music/huggingface.py" = ["TRY300"]
+"backend/app/providers/music/acestep/*.py" = ["TRY300"]
+"backend/tests/**" = ["S101"]
 
 [tool.ruff.format]
 quote-style = "double"

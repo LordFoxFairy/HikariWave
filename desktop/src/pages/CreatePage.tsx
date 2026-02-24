@@ -8,6 +8,7 @@ import {
     Globe,
     Guitar,
     KeyRound,
+    Layers,
     Loader2,
     Mic,
     Music,
@@ -21,7 +22,7 @@ import {
     X,
     Zap,
 } from "lucide-react";
-import type {ExtendRequest, Generation, RemixRequest} from "../types";
+import type {ExtendRequest, Generation, PipelineInfo, RemixRequest} from "../types";
 import {
     GENRE_OPTIONS,
     INSTRUMENT_OPTIONS,
@@ -72,6 +73,7 @@ export default function CreatePage() {
     const [remixPrompt, setRemixPrompt] = useState("");
     const [coverRegenerating, setCoverRegenerating] = useState(false);
     const [extendRemixLoading, setExtendRemixLoading] = useState(false);
+    const [pipelines, setPipelines] = useState<PipelineInfo[]>([]);
 
     const {pollTask, cancelPolling, progressMessage} = useTaskPolling({resultRef});
 
@@ -125,6 +127,13 @@ export default function CreatePage() {
             return () => clearTimeout(timer);
         }
     }, [store.successMessage, store]);
+
+    // Fetch available pipelines
+    useEffect(() => {
+        api.listPipelines()
+            .then(res => setPipelines(res.pipelines))
+            .catch(() => {});
+    }, []);
 
     /* -- Insert structure tag at cursor in lyrics editor -- */
     const insertStructureTag = useCallback((tag: string) => {
@@ -317,6 +326,7 @@ export default function CreatePage() {
                 instruments: store.instruments.length > 0 ? store.instruments : undefined,
                 language: store.language,
                 instrumental: store.instrumental,
+                pipeline: store.pipeline || undefined,
             });
             store.setCurrentTaskId(res.task_id);
             store.setGenerationStatus("processing");
@@ -773,14 +783,14 @@ export default function CreatePage() {
                                     <input
                                         type="range"
                                         min={30}
-                                        max={300}
-                                        step={10}
+                                        max={600}
+                                        step={5}
                                         value={store.duration}
                                         onChange={(e) => store.setDuration(Number(e.target.value))}
                                         className="w-full accent-primary-600 cursor-pointer"
                                     />
                                     <div className="flex justify-between text-[10px] text-text-tertiary mt-1">
-                                        <span>0:30</span><span>5:00</span>
+                                        <span>0:30</span><span>10:00</span>
                                     </div>
                                 </div>
                             </div>
@@ -864,6 +874,46 @@ export default function CreatePage() {
                                 placeholder={t("create.addInstrument", "Add instrument...")}
                             />
                         </div>
+                    </motion.div>
+                )}
+
+                {/* ================================================================
+            SECTION: Pipeline Selector (custom mode, multiple pipelines)
+           ================================================================ */}
+                {store.mode === "custom" && pipelines.length > 1 && (
+                    <motion.div
+                        variants={sectionVariants}
+                        initial="hidden"
+                        animate="visible"
+                        transition={{delay: 0.19, duration: 0.35}}
+                        className="bg-white rounded-2xl border border-border shadow-sm p-5"
+                    >
+                        <div className="flex items-center justify-between mb-2.5">
+                            <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
+                                <Layers className="w-4 h-4 text-primary-500"/>
+                                {t("create.pipeline")}
+                            </label>
+                            <span className="text-[11px] text-text-tertiary">
+                                {t("create.pipelineHint")}
+                            </span>
+                        </div>
+                        <CustomSelect
+                            value={store.pipeline}
+                            onChange={(v) => store.setPipeline(v)}
+                            options={["", ...pipelines.map(p => p.name)]}
+                            labelFn={(opt) => {
+                                if (opt === "") return t("create.pipelineAuto");
+                                const PIPELINE_I18N: Record<string, string> = {
+                                    direct: "create.pipelineDirect",
+                                    vocal_instrumental: "create.pipelineVocalInstrumental",
+                                };
+                                const i18nKey = PIPELINE_I18N[opt];
+                                if (i18nKey) return t(i18nKey);
+                                const info = pipelines.find(p => p.name === opt);
+                                return info ? info.description || info.name : opt;
+                            }}
+                            placeholder={t("create.pipelineAuto")}
+                        />
                     </motion.div>
                 )}
 

@@ -50,6 +50,12 @@ export interface GenerateMusicRequest {
     language?: string;
     instrumental?: boolean;
     generate_cover?: boolean;
+    pipeline?: string;
+}
+
+export interface PipelineInfo {
+    name: string;
+    description: string;
 }
 
 export interface ExtendRequest {
@@ -123,7 +129,6 @@ export type CreateMode = "smart" | "custom";
 export type PageId =
     | "create"
     | "library"
-    | "history"
     | "providers"
     | "settings";
 
@@ -157,11 +162,6 @@ export interface LLMTestResponse {
     models: string[];
 }
 
-export interface OllamaStatus {
-    available: boolean;
-    models: string[];
-}
-
 // ---- Music config management types ----
 
 export interface MusicModelEntry {
@@ -178,6 +178,18 @@ export interface MusicProviderEntry {
 export interface MusicProviderConfig {
     providers: MusicProviderEntry[];
     router: Record<string, string>;
+}
+
+export interface MusicProviderStatus {
+    name: string;
+    provider_type: string;
+    models: MusicModelEntry[];
+    is_active: boolean;
+    is_downloaded: boolean;
+}
+
+export interface MusicProviderListResponse {
+    providers: MusicProviderStatus[];
 }
 
 // ---- Marketplace types ----
@@ -215,4 +227,4 @@ export interface CachedModelInfo {
     last_accessed: number;
 }
 
-export type ProviderTab = "llm" | "music" | "image";
+export type ProviderTab = "llm" | "music";

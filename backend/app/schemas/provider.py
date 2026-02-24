@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class LLMProviderEntry(BaseModel):
     name: str
     type: str  # "openrouter", "ollama", "openai_compat"
+    label: str = ""
     base_url: str = ""
     api_key: str = ""
     models: list[str] = Field(default_factory=list)
@@ -40,11 +41,13 @@ class LLMTestResponse(BaseModel):
 class MusicModelEntry(BaseModel):
     name: str
     model_id: str = ""
+    model_kwargs: dict = Field(default_factory=dict)
 
 
 class MusicProviderEntry(BaseModel):
     name: str
     type: str = "local_gpu"
+    label: str = ""
     models: list[MusicModelEntry] = Field(default_factory=list)
 
 
@@ -56,8 +59,3 @@ class MusicConfigResponse(BaseModel):
 class MusicConfigUpdateRequest(BaseModel):
     providers: list[MusicProviderEntry]
     router: dict[str, str] = Field(default_factory=dict)
-
-
-class OllamaStatusResponse(BaseModel):
-    available: bool
-    models: list[str] = Field(default_factory=list)

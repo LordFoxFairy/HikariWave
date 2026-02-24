@@ -72,7 +72,7 @@ _STYLE_DEFAULTS = {
 
 
 def _to_langchain_messages(
-        messages: list[dict[str, str]],
+    messages: list[dict[str, str]],
 ) -> list[SystemMessage | HumanMessage | AIMessage]:
     """Convert ``{"role": ..., "content": ...}`` dicts to LangChain."""
     mapping = {
@@ -88,9 +88,9 @@ def _to_langchain_messages(
 
 
 async def _chat(
-        task: str,
-        messages: list[dict[str, str]],
-        **kwargs,
+    task: str,
+    messages: list[dict[str, str]],
+    **kwargs,
 ) -> str:
     """Resolve provider via router, init model if needed, call ainvoke.
 
@@ -118,11 +118,11 @@ class LLMService:
     """
 
     async def generate_lyrics(
-            self,
-            prompt: str,
-            genre: str | None = None,
-            mood: str | None = None,
-            language: str = "en",
+        self,
+        prompt: str,
+        genre: str | None = None,
+        mood: str | None = None,
+        language: str = "en",
     ) -> str:
         user_content = f"Write song lyrics about: {prompt}"
         if genre:
@@ -137,10 +137,10 @@ class LLMService:
         return await _chat("lyrics", messages)
 
     async def enhance_prompt(
-            self,
-            prompt: str,
-            genre: str | None = None,
-            mood: str | None = None,
+        self,
+        prompt: str,
+        genre: str | None = None,
+        mood: str | None = None,
     ) -> str:
         user_content = f"Enhance this music description: {prompt}"
         if genre:
@@ -180,11 +180,11 @@ class LLMService:
         return StyleSuggestion(**result)
 
     async def generate_title(
-            self,
-            lyrics: str | None = None,
-            genre: str | None = None,
-            mood: str | None = None,
-            prompt: str | None = None,
+        self,
+        lyrics: str | None = None,
+        genre: str | None = None,
+        mood: str | None = None,
+        prompt: str | None = None,
     ) -> str:
         parts = ["Generate a song title based on the following:"]
         if prompt:
@@ -204,11 +204,11 @@ class LLMService:
         return title.strip().strip("\"'")
 
     async def generate_cover_prompt(
-            self,
-            title: str | None = None,
-            genre: str | None = None,
-            mood: str | None = None,
-            lyrics: str | None = None,
+        self,
+        title: str | None = None,
+        genre: str | None = None,
+        mood: str | None = None,
+        lyrics: str | None = None,
     ) -> str:
         parts = ["Generate an album cover art prompt for:"]
         if title:
@@ -226,6 +226,67 @@ class LLMService:
         ]
         result = await _chat("cover_art", messages, temperature=0.8)
         return result.strip()
+
+    async def generate_cover_image(
+        self,
+        prompt: str,
+        width: int = 1024,
+        height: int = 1024,
+    ) -> str:
+        """Generate a cover art image via the LLM provider's image endpoint.
+
+        Uses the ``cover_art`` router entry to resolve the provider, then
+        calls the OpenAI-compatible ``/images/generations`` endpoint with
+        the provider's credentials.
+
+        Returns the path to the saved PNG file.
+        """
+        import base64
+        import uuid
+        from pathlib import Path
+
+        import httpx
+
+        from backend.app.core.settings import settings
+
+        provider, model_name = provider_manager.get_llm_provider("cover_art")
+        base_url = provider.config.base_url.rstrip("/")
+        # Strip /chat/completions or /v1 suffix to get the root
+        for suffix in ("/chat/completions", "/v1"):
+            if base_url.endswith(suffix):
+                base_url = base_url[: -len(suffix)]
+        images_url = f"{base_url}/v1/images/generations"
+
+        payload = {
+            "model": model_name,
+            "prompt": prompt,
+            "n": 1,
+            "size": f"{width}x{height}",
+            "response_format": "b64_json",
+        }
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if provider.config.api_key:
+            headers["Authorization"] = f"Bearer {provider.config.api_key}"
+
+        logger.info("Cover image generation: model=%s", model_name)
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(images_url, json=payload, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+
+        image_b64 = data["data"][0]["b64_json"]
+        image_bytes = base64.b64decode(image_b64)
+
+        output_dir = Path(settings.storage_dir) / "covers"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / f"{uuid.uuid4().hex}.png"
+        output_path.write_bytes(image_bytes)
+
+        logger.info("Cover art saved: %s", output_path)
+        return str(output_path)
 
 
 llm_service = LLMService()

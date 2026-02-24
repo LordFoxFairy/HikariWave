@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useState} from "react";
 import {AnimatePresence} from "framer-motion";
-import {Brain, ChevronDown, Globe, Loader2, Pencil, Plus, Trash2, Zap,} from "lucide-react";
+import {Brain, ChevronDown, Globe, Loader2, Pencil, Plus, Trash2,} from "lucide-react";
 import {useTranslation} from "react-i18next";
 import {api} from "../../services/api";
 import {SectionHeader} from "../../components/providers/SectionHeader";
@@ -12,7 +12,7 @@ import {
     PROVIDER_TYPE_COLORS,
     PROVIDER_TYPE_LABELS,
 } from "../../constants/providerOptions";
-import type {LLMConfig, LLMProviderEntry, LLMProviderType, LLMTestResponse, OllamaStatus,} from "../../types";
+import type {LLMConfig, LLMProviderEntry, LLMProviderType, LLMTestResponse,} from "../../types";
 
 export function LLMTab() {
     const {t} = useTranslation();
@@ -25,8 +25,6 @@ export function LLMTab() {
     const [testResult, setTestResult] = useState<LLMTestResponse | null>(null);
     const [testingProvider, setTestingProvider] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
-    const [detectingOllama, setDetectingOllama] = useState(false);
 
     const loadData = useCallback(async () => {
         try {
@@ -86,7 +84,7 @@ export function LLMTab() {
                 model: formData.models[0] || "",
             });
             setTestResult(result);
-            if (result.success && result.models.length > 0 && formData.type === "ollama") {
+            if (result.success && result.models.length > 0 && !formModels.trim()) {
                 setFormModels(result.models.join(", "));
                 setFormData((d) => ({...d, models: result.models}));
             }
@@ -180,41 +178,15 @@ export function LLMTab() {
         }
     }
 
-    const handleDetectOllama = async () => {
-        setDetectingOllama(true);
-        try {
-            const status = await api.getOllamaStatus();
-            setOllamaStatus(status);
-        } catch {
-            setOllamaStatus({available: false, models: []});
-        } finally {
-            setDetectingOllama(false);
-        }
-    };
-
-    const handleAddOllama = (models: string[]) => {
-        setFormData({
-            name: "ollama",
-            type: "ollama",
-            base_url: "http://localhost:11434",
-            api_key: "",
-            models,
-        });
-        setFormModels(models.join(", "));
-        setTestResult(null);
-        setEditingIndex(null);
-        setShowAddForm(true);
-    };
-
     return (
         <div className="space-y-5">
             {/* Provider Cards */}
-            <SectionHeader icon={Brain} title="LLM Providers"/>
+            <SectionHeader icon={Brain} title={t("providers.llmProviders")}/>
             <div className="bg-white rounded-xl border border-border shadow-sm p-5">
                 {loading ? (
                     <div className="flex items-center justify-center py-4">
                         <Loader2 className="w-4 h-4 animate-spin text-text-tertiary"/>
-                        <span className="text-sm text-text-tertiary ml-2">Loading...</span>
+                        <span className="text-sm text-text-tertiary ml-2">{t("providers.loading")}</span>
                     </div>
                 ) : llmConfig && llmConfig.providers.length > 0 ? (
                     <div className="space-y-3">
@@ -229,64 +201,8 @@ export function LLMTab() {
                         ))}
                     </div>
                 ) : (
-                    <p className="text-sm text-text-tertiary">No LLM providers configured</p>
+                    <p className="text-sm text-text-tertiary">{t("providers.noLLMProviders")}</p>
                 )}
-
-                {/* Ollama detection */}
-                <div className="mt-4 pt-4 border-t border-border">
-                    <div className="flex items-center gap-2 mb-2">
-                        <Zap className="w-3.5 h-3.5 text-emerald-600"/>
-                        <span className="text-xs font-medium text-text-secondary">
-              Local Ollama
-            </span>
-                        <button
-                            onClick={handleDetectOllama}
-                            disabled={detectingOllama}
-                            className="ml-auto text-xs text-primary-600 hover:text-primary-700
-                         cursor-pointer flex items-center gap-1"
-                        >
-                            {detectingOllama && <Loader2 className="w-3 h-3 animate-spin"/>}
-                            Detect
-                        </button>
-                    </div>
-                    {ollamaStatus && (
-                        <div className="text-xs">
-                            {ollamaStatus.available ? (
-                                <div>
-                                    <p className="text-green-600 mb-1">
-                                        Ollama running -- {ollamaStatus.models.length} model(s)
-                                    </p>
-                                    {ollamaStatus.models.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mb-2">
-                                            {ollamaStatus.models.map((m) => (
-                                                <span
-                                                    key={m}
-                                                    className="px-2 py-0.5 bg-emerald-50 text-emerald-700
-                                     rounded text-[11px]"
-                                                >
-                          {m}
-                        </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {!llmConfig?.providers.some((p) => p.type === "ollama") && (
-                                        <button
-                                            onClick={() => handleAddOllama(ollamaStatus.models)}
-                                            className="text-primary-600 hover:text-primary-700
-                                 font-medium cursor-pointer"
-                                        >
-                                            + Add Ollama as provider
-                                        </button>
-                                    )}
-                                </div>
-                            ) : (
-                                <p className="text-text-tertiary">
-                                    Ollama not detected at localhost:11434
-                                </p>
-                            )}
-                        </div>
-                    )}
-                </div>
 
                 {/* Add provider button */}
                 <div className="mt-4 pt-4 border-t border-border">
@@ -296,7 +212,7 @@ export function LLMTab() {
                        hover:text-primary-700 font-medium cursor-pointer"
                     >
                         <Plus className="w-4 h-4"/>
-                        Add Provider
+                        {t("providers.addProvider")}
                     </button>
                 </div>
             </div>
@@ -324,10 +240,10 @@ export function LLMTab() {
             {/* Router Config */}
             {llmConfig && llmConfig.providers.length > 0 && (
                 <>
-                    <SectionHeader icon={Globe} title="LLM Task Router"/>
+                    <SectionHeader icon={Globe} title={t("providers.llmTaskRouter")}/>
                     <div className="bg-white rounded-xl border border-border shadow-sm p-5">
                         <p className="text-xs text-text-tertiary mb-4">
-                            Choose which provider and model handles each task type.
+                            {t("providers.chooseProviderModel")}
                         </p>
                         <div className="space-y-3">
                             {LLM_ROUTER_TASKS.map(({key, labelKey}) => (
@@ -344,7 +260,7 @@ export function LLMTab() {
                                  focus:outline-none focus:ring-2
                                  focus:ring-primary-300 cursor-pointer"
                                         >
-                                            <option value="">-- not set --</option>
+                                            <option value="">{t("providers.notSet")}</option>
                                             {allModelOptions.map((opt) => (
                                                 <option key={opt.value} value={opt.value}>
                                                     {opt.label}
@@ -362,7 +278,7 @@ export function LLMTab() {
                         {saving && (
                             <div className="flex items-center gap-1.5 mt-3 text-xs text-text-tertiary">
                                 <Loader2 className="w-3 h-3 animate-spin"/>
-                                Saving...
+                                {t("providers.saving")}
                             </div>
                         )}
                     </div>
@@ -385,6 +301,7 @@ function LLMProviderCard({
     onEdit: () => void;
     onDelete: () => void;
 }) {
+    const {t} = useTranslation();
     return (
         <div
             className={`px-4 py-3 rounded-lg border text-sm transition-all flex
@@ -406,17 +323,17 @@ function LLMProviderCard({
                     {isDefault && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-medium
                              bg-primary-100 text-primary-700">
-              Default
+              {t("providers.default")}
             </span>
                     )}
                 </div>
                 <p className="text-xs text-text-tertiary truncate">
-                    {provider.base_url || "No URL"}
+                    {provider.base_url || t("providers.noUrl")}
                 </p>
                 <p className="text-xs text-text-tertiary truncate mt-0.5">
                     {provider.models.length > 0
                         ? provider.models.join(", ")
-                        : "No models configured"}
+                        : t("providers.noModelsConfigured")}
                 </p>
             </div>
             <div className="flex gap-1 flex-shrink-0">
@@ -425,7 +342,7 @@ function LLMProviderCard({
                     className="p-1.5 rounded-md hover:bg-surface-tertiary
                      text-text-tertiary hover:text-text-secondary
                      transition-colors cursor-pointer"
-                    title="Edit"
+                    title={t("providers.editProvider")}
                 >
                     <Pencil className="w-3.5 h-3.5"/>
                 </button>
@@ -434,7 +351,7 @@ function LLMProviderCard({
                     className="p-1.5 rounded-md hover:bg-red-50
                      text-text-tertiary hover:text-red-500
                      transition-colors cursor-pointer"
-                    title="Delete"
+                    title={t("common.delete")}
                 >
                     <Trash2 className="w-3.5 h-3.5"/>
                 </button>

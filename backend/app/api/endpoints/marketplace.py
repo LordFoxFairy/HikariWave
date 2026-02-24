@@ -18,11 +18,11 @@ router = APIRouter(prefix="/marketplace", tags=["marketplace"])
 
 @router.get("/search", response_model=HFModelSearchResponse)
 async def search_models(
-        q: str | None = None,
-        pipeline_tag: str | None = None,
-        sort: str = "downloads",
-        limit: int = 20,
-        svc: ModelMarketplaceService = Depends(get_marketplace_service),
+    q: str | None = None,
+    pipeline_tag: str | None = None,
+    sort: str = "downloads",
+    limit: int = 20,
+    svc: ModelMarketplaceService = Depends(get_marketplace_service),
 ):
     """Search HuggingFace Hub for models."""
     models = await svc.search_models(
@@ -36,8 +36,8 @@ async def search_models(
 
 @router.get("/model/{repo_id:path}", response_model=HFModelDetail)
 async def get_model_info(
-        repo_id: str,
-        svc: ModelMarketplaceService = Depends(get_marketplace_service),
+    repo_id: str,
+    svc: ModelMarketplaceService = Depends(get_marketplace_service),
 ):
     """Get detailed info for a specific model."""
     try:
@@ -48,8 +48,8 @@ async def get_model_info(
 
 @router.post("/download", response_model=DownloadResponse)
 async def start_download(
-        body: DownloadRequest,
-        svc: ModelMarketplaceService = Depends(get_marketplace_service),
+    body: DownloadRequest,
+    svc: ModelMarketplaceService = Depends(get_marketplace_service),
 ):
     """Start downloading a model in the background."""
     progress = await svc.start_download(body.repo_id)
@@ -62,7 +62,7 @@ async def start_download(
 
 @router.get("/downloads", response_model=DownloadListResponse)
 async def list_downloads(
-        svc: ModelMarketplaceService = Depends(get_marketplace_service),
+    svc: ModelMarketplaceService = Depends(get_marketplace_service),
 ):
     """List all downloads with progress."""
     return DownloadListResponse(downloads=svc.get_all_downloads())
@@ -70,8 +70,8 @@ async def list_downloads(
 
 @router.get("/downloads/{download_id}", response_model=DownloadProgress)
 async def get_download(
-        download_id: str,
-        svc: ModelMarketplaceService = Depends(get_marketplace_service),
+    download_id: str,
+    svc: ModelMarketplaceService = Depends(get_marketplace_service),
 ):
     """Get progress for a specific download."""
     progress = svc.get_download_progress(download_id)
@@ -82,7 +82,7 @@ async def get_download(
 
 @router.get("/cache", response_model=CachedModelsResponse)
 async def list_cached_models(
-        svc: ModelMarketplaceService = Depends(get_marketplace_service),
+    svc: ModelMarketplaceService = Depends(get_marketplace_service),
 ):
     """List locally cached models."""
     return CachedModelsResponse(models=await svc.list_cached_models())
@@ -90,8 +90,8 @@ async def list_cached_models(
 
 @router.delete("/cache/{repo_id:path}", response_model=DeleteCacheResponse)
 async def delete_cached_model(
-        repo_id: str,
-        svc: ModelMarketplaceService = Depends(get_marketplace_service),
+    repo_id: str,
+    svc: ModelMarketplaceService = Depends(get_marketplace_service),
 ):
     """Delete a model from the local cache."""
     deleted = await svc.delete_cached_model(repo_id)
@@ -99,6 +99,4 @@ async def delete_cached_model(
         return DeleteCacheResponse(
             success=True, message=f"Deleted {repo_id} from cache"
         )
-    raise HTTPException(
-        status_code=404, detail=f"Model {repo_id} not found in cache"
-    )
+    raise HTTPException(status_code=404, detail=f"Model {repo_id} not found in cache")

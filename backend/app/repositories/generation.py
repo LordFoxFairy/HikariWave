@@ -42,16 +42,16 @@ class GenerationRepository:
             return result.scalar_one_or_none()
 
     async def list_all(
-            self,
-            offset: int = 0,
-            limit: int = 50,
-            search: str | None = None,
-            is_liked: bool | None = None,
-            genre: str | None = None,
-            mood: str | None = None,
-            status: str | None = None,
-            sort: str = "created_at",
-            sort_dir: str = "desc",
+        self,
+        offset: int = 0,
+        limit: int = 50,
+        search: str | None = None,
+        is_liked: bool | None = None,
+        genre: str | None = None,
+        mood: str | None = None,
+        status: str | None = None,
+        sort: str = "created_at",
+        sort_dir: str = "desc",
     ) -> tuple[list[Generation], int]:
         async with async_session_factory() as db:
             # Build shared filter conditions
@@ -126,7 +126,7 @@ class GenerationRepository:
             return gen
 
     async def update_status(
-            self, task_id: str, status: str, **extra_fields: Any
+        self, task_id: str, status: str, **extra_fields: Any
     ) -> Generation | None:
         async with async_session_factory() as db:
             result = await db.execute(
@@ -143,7 +143,7 @@ class GenerationRepository:
             return gen
 
     async def update_cover_art(
-            self, task_id: str, cover_art_path: str, cover_art_prompt: str
+        self, task_id: str, cover_art_path: str, cover_art_prompt: str
     ) -> Generation | None:
         async with async_session_factory() as db:
             result = await db.execute(
@@ -159,7 +159,7 @@ class GenerationRepository:
             return gen
 
     async def update_cover_art_by_id(
-            self, generation_id: int, cover_art_path: str, cover_art_prompt: str
+        self, generation_id: int, cover_art_path: str, cover_art_prompt: str
     ) -> Generation | None:
         async with async_session_factory() as db:
             result = await db.execute(
@@ -175,7 +175,7 @@ class GenerationRepository:
             return gen
 
     async def update_by_id(
-            self, generation_id: int, **fields: Any
+        self, generation_id: int, **fields: Any
     ) -> Generation | None:
         async with async_session_factory() as db:
             result = await db.execute(

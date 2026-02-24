@@ -1,6 +1,7 @@
 import {useCallback, useRef, useState} from "react";
 import {motion} from "framer-motion";
 import {ArrowDownUp, CheckCircle, Download, Heart, Loader2, Search,} from "lucide-react";
+import {useTranslation} from "react-i18next";
 import {useProviderStore} from "../../stores/providerStore";
 import {formatCount, licenseBadgeColor} from "../../constants/providerOptions";
 import type {DownloadProgress, HFModelInfo} from "../../types";
@@ -9,13 +10,16 @@ interface MarketplaceSectionProps {
     pipelineTag: string;
     searchPlaceholder: string;
     emptyMessage: string;
+    onModelDownloaded?: (repoId: string) => void;
 }
 
 export function MarketplaceSection({
                                        pipelineTag,
                                        searchPlaceholder,
                                        emptyMessage,
+                                       onModelDownloaded,
                                    }: MarketplaceSectionProps) {
+    const {t} = useTranslation();
     const {
         searchQuery,
         searchResults,
@@ -57,6 +61,7 @@ export function MarketplaceSection({
     const handleDownload = async (repoId: string) => {
         await startDownload(repoId);
         refreshDownloads();
+        onModelDownloaded?.(repoId);
     };
 
     return (
@@ -82,9 +87,9 @@ export function MarketplaceSection({
                        bg-surface-secondary text-sm focus:outline-none
                        focus:ring-2 focus:ring-primary-300 cursor-pointer"
                     >
-                        <option value="downloads">Most Downloaded</option>
-                        <option value="likes">Most Liked</option>
-                        <option value="trending">Trending</option>
+                        <option value="downloads">{t("providers.mostDownloaded")}</option>
+                        <option value="likes">{t("providers.mostLiked")}</option>
+                        <option value="trending">{t("providers.trending")}</option>
                     </select>
                     <ArrowDownUp className="absolute right-2.5 top-1/2 -translate-y-1/2
                                   w-3.5 h-3.5 text-text-tertiary pointer-events-none"/>
@@ -95,7 +100,7 @@ export function MarketplaceSection({
             {searchLoading ? (
                 <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-5 h-5 animate-spin text-text-tertiary"/>
-                    <span className="text-sm text-text-tertiary ml-2">Searching...</span>
+                    <span className="text-sm text-text-tertiary ml-2">{t("providers.searching")}</span>
                 </div>
             ) : searchResults.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -111,7 +116,7 @@ export function MarketplaceSection({
                 </div>
             ) : searchQuery ? (
                 <p className="text-sm text-text-tertiary text-center py-8">
-                    No models found for &ldquo;{searchQuery}&rdquo;
+                    {t("providers.noModelsFound", {query: searchQuery})}
                 </p>
             ) : (
                 <p className="text-sm text-text-tertiary text-center py-8">
@@ -133,6 +138,7 @@ function MarketplaceCard({
     activeDownload?: DownloadProgress;
     onDownload: () => void;
 }) {
+    const {t} = useTranslation();
     const isDownloading = !!activeDownload;
     const progress = activeDownload?.progress ?? 0;
 
@@ -176,12 +182,12 @@ function MarketplaceCard({
             {isCached ? (
                 <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium mt-auto">
                     <CheckCircle className="w-3.5 h-3.5"/>
-                    Downloaded
+                    {t("providers.downloaded")}
                 </div>
             ) : isDownloading ? (
                 <div className="mt-auto">
                     <div className="flex items-center justify-between text-[11px] text-text-tertiary mb-1">
-                        <span>Downloading...</span>
+                        <span>{t("providers.downloading")}</span>
                         <span>{Math.round(progress)}%</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-primary-100 overflow-hidden">
@@ -202,7 +208,7 @@ function MarketplaceCard({
                      flex items-center justify-center gap-1.5"
                 >
                     <Download className="w-3.5 h-3.5"/>
-                    Download
+                    {t("providers.download")}
                 </button>
             )}
         </div>

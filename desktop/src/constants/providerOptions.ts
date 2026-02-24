@@ -1,4 +1,4 @@
-import {Brain, ImageIcon, Music} from "lucide-react";
+import {Brain, Music} from "lucide-react";
 import type {LLMProviderEntry, LLMProviderType, ProviderTab} from "../types";
 
 // ---- Tab configuration ----
@@ -6,7 +6,6 @@ import type {LLMProviderEntry, LLMProviderType, ProviderTab} from "../types";
 export const TABS: { id: ProviderTab; labelKey: string; icon: typeof Brain }[] = [
     {id: "llm", labelKey: "providers.llm", icon: Brain},
     {id: "music", labelKey: "providers.music", icon: Music},
-    {id: "image", labelKey: "providers.image", icon: ImageIcon},
 ];
 
 // ---- LLM constants ----

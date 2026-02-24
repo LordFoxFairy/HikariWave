@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import threading
 import uuid
 
 from backend.app.schemas.marketplace import (
@@ -13,29 +14,41 @@ logger = logging.getLogger(__name__)
 
 
 class _ProgressTracker:
-    """Custom tqdm-compatible class that captures download progress."""
+    """Custom tqdm-compatible class that captures download progress.
+
+    ``huggingface_hub.snapshot_download`` passes this as ``tqdm_class``.
+    The hub calls ``tqdm_class(...)`` to create bar instances and may
+    also call ``tqdm_class.get_lock()`` (a class-level method from tqdm).
+    """
 
     def __init__(self, progress_ref: DownloadProgress):
         self._progress = progress_ref
-        self._total = 0
-        self._current = 0
+        self._lock = threading.Lock()
 
     def __call__(self, *args, **kwargs):
         """Called by snapshot_download as tqdm_class(...)."""
-        instance = _ProgressTrackerInstance(self._progress)
-        # tqdm is called with iterable or total as first arg
+        instance = _ProgressTrackerInstance(self._progress, self._lock)
         total = kwargs.get("total")
         if total is not None:
             instance._total = total
             self._progress.status = "downloading"
         return instance
 
+    def get_lock(self):
+        """Return a threading lock (expected by huggingface_hub internals)."""
+        return self._lock
+
+    def set_lock(self, lock):
+        """Set a threading lock (expected by huggingface_hub internals)."""
+        self._lock = lock
+
 
 class _ProgressTrackerInstance:
     """Single progress bar instance (one per file)."""
 
-    def __init__(self, progress_ref: DownloadProgress):
+    def __init__(self, progress_ref: DownloadProgress, lock: threading.Lock):
         self._progress = progress_ref
+        self._lock = lock
         self._total = 0
         self._current = 0
 
@@ -56,9 +69,7 @@ class _ProgressTrackerInstance:
         if self._total > 0:
             pct = min(100.0, (self._current / self._total) * 100)
             self._progress.progress = round(pct, 1)
-            self._progress.message = (
-                f"Downloading: {self._current}/{self._total} bytes"
-            )
+            self._progress.message = f"Downloading: {self._current}/{self._total} bytes"
 
     def close(self):
         pass
@@ -69,6 +80,12 @@ class _ProgressTrackerInstance:
 
     def set_postfix_str(self, s="", refresh=True):
         pass
+
+    def get_lock(self):
+        return self._lock
+
+    def set_lock(self, lock):
+        self._lock = lock
 
     @property
     def total(self):
@@ -91,23 +108,25 @@ class ModelMarketplaceService:
         self._downloads: dict[str, DownloadProgress] = {}
 
     async def search_models(
-            self,
-            query: str | None = None,
-            pipeline_tag: str | None = None,
-            sort: str = "downloads",
-            limit: int = 20,
+        self,
+        query: str | None = None,
+        pipeline_tag: str | None = None,
+        sort: str = "downloads",
+        limit: int = 20,
     ) -> list[HFModelInfo]:
         from huggingface_hub import HfApi
 
         def _search() -> list:
             api = HfApi()
-            return list(api.list_models(
-                search=query or None,
-                pipeline_tag=pipeline_tag or None,
-                sort=sort,
-                direction=-1,
-                limit=limit,
-            ))
+            return list(
+                api.list_models(
+                    search=query or None,
+                    pipeline_tag=pipeline_tag or None,
+                    sort=sort,
+                    direction=-1,
+                    limit=limit,
+                )
+            )
 
         models = await asyncio.to_thread(_search)
         cached_ids = await self._get_cached_ids()
@@ -258,9 +277,7 @@ class ModelMarketplaceService:
 
             cache_info = await asyncio.to_thread(scan_cache_dir)
             return {
-                repo.repo_id
-                for repo in cache_info.repos
-                if repo.repo_type == "model"
+                repo.repo_id for repo in cache_info.repos if repo.repo_type == "model"
             }
         except Exception:
             return set()

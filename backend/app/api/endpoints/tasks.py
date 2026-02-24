@@ -9,8 +9,8 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 @router.get("/{task_id}", response_model=GenerationResponse)
 async def get_task_status(
-        task_id: str,
-        svc: GenerationService = Depends(get_generation_service),
+    task_id: str,
+    svc: GenerationService = Depends(get_generation_service),
 ):
     gen = await svc.get_by_task_id(task_id)
     if gen is None:
@@ -20,8 +20,8 @@ async def get_task_status(
 
 @router.post("/{task_id}/cancel")
 async def cancel_task(
-        task_id: str,
-        svc: GenerationService = Depends(get_generation_service),
+    task_id: str,
+    svc: GenerationService = Depends(get_generation_service),
 ):
     gen = await svc.get_by_task_id(task_id)
     if gen is None:
@@ -34,8 +34,8 @@ async def cancel_task(
 
 @router.get("/{task_id}/result", response_model=GenerationResponse)
 async def get_task_result(
-        task_id: str,
-        svc: GenerationService = Depends(get_generation_service),
+    task_id: str,
+    svc: GenerationService = Depends(get_generation_service),
 ):
     gen = await svc.get_by_task_id(task_id)
     if gen is None:

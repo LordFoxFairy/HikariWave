@@ -120,25 +120,23 @@ export function ProviderFormModal({
                         />
                     </div>
 
-                    {/* API Key (not for Ollama) */}
-                    {formData.type !== "ollama" && (
-                        <div>
-                            <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                                API Key
-                            </label>
-                            <input
-                                type="password"
-                                value={formData.api_key}
-                                onChange={(e) =>
-                                    onFormDataChange((d) => ({...d, api_key: e.target.value}))
-                                }
-                                placeholder="sk-..."
-                                className="w-full px-3 py-2 rounded-lg border border-border
+                    {/* API Key */}
+                    <div>
+                        <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                            API Key
+                        </label>
+                        <input
+                            type="password"
+                            value={formData.api_key}
+                            onChange={(e) =>
+                                onFormDataChange((d) => ({...d, api_key: e.target.value}))
+                            }
+                            placeholder="sk-..."
+                            className="w-full px-3 py-2 rounded-lg border border-border
                            bg-surface-secondary text-sm focus:outline-none
                            focus:ring-2 focus:ring-primary-300"
-                            />
-                        </div>
-                    )}
+                        />
+                    </div>
 
                     {/* Models */}
                     <div>

@@ -8,37 +8,29 @@ from backend.app.schemas.provider import (
     LLMTestResponse,
     MusicConfigResponse,
     MusicConfigUpdateRequest,
-    OllamaStatusResponse,
 )
-from backend.app.services.provider_service import ProviderService
+from backend.app.services.config_service import ProviderConfigService as ProviderService
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
 
 @router.get("/llm")
 async def list_llm_providers(
-        svc: ProviderService = Depends(get_provider_service),
+    svc: ProviderService = Depends(get_provider_service),
 ):
     return {"providers": await svc.list_llm_providers()}
 
 
 @router.get("/music")
 async def list_music_providers(
-        svc: ProviderService = Depends(get_provider_service),
+    svc: ProviderService = Depends(get_provider_service),
 ):
     return {"providers": await svc.list_music_providers()}
 
 
-@router.get("/image")
-async def list_image_providers(
-        svc: ProviderService = Depends(get_provider_service),
-):
-    return {"providers": await svc.list_image_providers()}
-
-
 @router.get("/music/config", response_model=MusicConfigResponse)
 async def get_music_config(
-        svc: ProviderService = Depends(get_provider_service),
+    svc: ProviderService = Depends(get_provider_service),
 ):
     """Get current music configuration (providers + router)."""
     return await svc.get_music_config()
@@ -46,8 +38,8 @@ async def get_music_config(
 
 @router.put("/music/config", response_model=MusicConfigResponse)
 async def update_music_config(
-        body: MusicConfigUpdateRequest,
-        svc: ProviderService = Depends(get_provider_service),
+    body: MusicConfigUpdateRequest,
+    svc: ProviderService = Depends(get_provider_service),
 ):
     """Update music configuration. Persists to config.yaml."""
     providers = [p.model_dump() for p in body.providers]
@@ -56,7 +48,7 @@ async def update_music_config(
 
 @router.get("/llm/config", response_model=LLMConfigResponse)
 async def get_llm_config(
-        svc: ProviderService = Depends(get_provider_service),
+    svc: ProviderService = Depends(get_provider_service),
 ):
     """Get current LLM configuration (providers + router)."""
     return await svc.get_llm_config()
@@ -64,8 +56,8 @@ async def get_llm_config(
 
 @router.put("/llm/config", response_model=LLMConfigResponse)
 async def update_llm_config(
-        body: LLMConfigUpdateRequest,
-        svc: ProviderService = Depends(get_provider_service),
+    body: LLMConfigUpdateRequest,
+    svc: ProviderService = Depends(get_provider_service),
 ):
     """Update LLM configuration (providers + router). Persists to config.yaml."""
     providers = [p.model_dump() for p in body.providers]
@@ -74,8 +66,8 @@ async def update_llm_config(
 
 @router.post("/llm/test", response_model=LLMTestResponse)
 async def test_llm_connection(
-        body: LLMTestRequest,
-        svc: ProviderService = Depends(get_provider_service),
+    body: LLMTestRequest,
+    svc: ProviderService = Depends(get_provider_service),
 ):
     """Test an LLM provider connection."""
     return await svc.test_llm_connection(
@@ -84,12 +76,3 @@ async def test_llm_connection(
         api_key=body.api_key,
         model=body.model,
     )
-
-
-@router.get("/ollama/status", response_model=OllamaStatusResponse)
-async def ollama_status(
-        base_url: str = "http://localhost:11434",
-        svc: ProviderService = Depends(get_provider_service),
-):
-    """Detect if Ollama is running and list available models."""
-    return await svc.detect_ollama(base_url)

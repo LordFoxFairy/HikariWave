@@ -13,7 +13,8 @@ import type {
     LLMTestRequest,
     LLMTestResponse,
     MusicProviderConfig,
-    OllamaStatus,
+    MusicProviderListResponse,
+    PipelineInfo,
     RemixRequest,
     StyleSuggestion,
     StyleSuggestRequest,
@@ -53,6 +54,10 @@ export const api = {
             method: "POST",
             body: JSON.stringify(data),
         });
+    },
+
+    listPipelines() {
+        return request<{ pipelines: PipelineInfo[] }>("/generate/pipelines");
     },
 
     generateLyrics(data: GenerateLyricsRequest) {
@@ -180,12 +185,6 @@ export const api = {
         });
     },
 
-    getOllamaStatus(baseUrl = "http://localhost:11434") {
-        return request<OllamaStatus>(
-            `/providers/ollama/status?base_url=${encodeURIComponent(baseUrl)}`,
-        );
-    },
-
     // ---- Music config management ----
 
     getMusicConfig() {
@@ -197,6 +196,10 @@ export const api = {
             method: "PUT",
             body: JSON.stringify(data),
         });
+    },
+
+    listMusicProviders() {
+        return request<MusicProviderListResponse>("/providers/music");
     },
 
     // ---- Marketplace ----

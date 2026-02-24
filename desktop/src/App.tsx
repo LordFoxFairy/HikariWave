@@ -6,7 +6,6 @@ import Sidebar from "./components/Sidebar";
 import Player from "./components/Player";
 import CreatePage from "./pages/CreatePage";
 import LibraryPage from "./pages/LibraryPage";
-import HistoryPage from "./pages/HistoryPage";
 import ProvidersPage from "./pages/ProvidersPage";
 import SettingsPage from "./pages/SettingsPage";
 import {useAppStore} from "./stores/appStore";
@@ -44,7 +43,7 @@ function SetupBanner() {
                     const hasProvider =
                         config.providers &&
                         config.providers.length > 0 &&
-                        config.providers.some((p) => p.api_key || p.type === "ollama");
+                        config.providers.some((p) => p.api_key || p.base_url);
                     if (!hasProvider) {
                         setBanner("no-providers");
                     }
@@ -147,7 +146,6 @@ function PageRouter() {
             <SetupBanner/>
             {currentPage === "create" && <CreatePage/>}
             {currentPage === "library" && <LibraryPage/>}
-            {currentPage === "history" && <HistoryPage/>}
             {currentPage === "providers" && <ProvidersPage/>}
             {currentPage === "settings" && <SettingsPage/>}
         </div>

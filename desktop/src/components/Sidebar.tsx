@@ -1,4 +1,4 @@
-import {Clock, Layers, Library, Music, PlusCircle, Settings, Sparkles} from "lucide-react";
+import {Layers, Library, Music, PlusCircle, Settings, Sparkles} from "lucide-react";
 import {AnimatePresence, motion} from "framer-motion";
 import {useTranslation} from "react-i18next";
 import {useAppStore} from "../stores/appStore";
@@ -7,7 +7,6 @@ import type {PageId} from "../types";
 const navItems: { id: PageId; labelKey: string; icon: typeof Music }[] = [
     {id: "create", labelKey: "sidebar.create", icon: PlusCircle},
     {id: "library", labelKey: "sidebar.library", icon: Library},
-    {id: "history", labelKey: "sidebar.history", icon: Clock},
     {id: "providers", labelKey: "sidebar.providers", icon: Layers},
     {id: "settings", labelKey: "sidebar.settings", icon: Settings},
 ];

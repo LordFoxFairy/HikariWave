@@ -4,7 +4,6 @@ import {useProviderStore} from "../stores/providerStore";
 import {TABS} from "../constants/providerOptions";
 import {LLMTab} from "./providers/LLMTab";
 import {MusicTab} from "./providers/MusicTab";
-import {ImageTab} from "./providers/ImageTab";
 
 export default function ProvidersPage() {
     const {t} = useTranslation();
@@ -60,7 +59,6 @@ export default function ProvidersPage() {
                     >
                         {activeTab === "llm" && <LLMTab/>}
                         {activeTab === "music" && <MusicTab/>}
-                        {activeTab === "image" && <ImageTab/>}
                     </motion.div>
                 </AnimatePresence>
 

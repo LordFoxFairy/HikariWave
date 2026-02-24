@@ -10,6 +10,7 @@ from backend.app.providers.music.base import BaseMusicProvider
 from backend.app.providers.music.base import MusicGenerationRequest as MusicReq
 from backend.app.repositories.generation import generation_repository
 from backend.app.services.llm_service import llm_service
+from backend.app.services.music import music_inference_service
 from backend.app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
@@ -48,23 +49,24 @@ class GenerationService:
         self._repo = generation_repository
 
     async def create_generation(
-            self,
-            prompt: str,
-            duration: float = 30.0,
-            genre: str | None = None,
-            mood: str | None = None,
-            lyrics: str | None = None,
-            title: str | None = None,
-            tempo: int | None = None,
-            musical_key: str | None = None,
-            instruments: list[str] | None = None,
-            language: str = "en",
-            instrumental: bool = False,
-            enhance_prompt: bool = True,
-            generate_lyrics: bool = False,
-            generate_cover: bool = True,
-            parent_id: int | None = None,
-            parent_type: str | None = None,
+        self,
+        prompt: str,
+        duration: float = 30.0,
+        genre: str | None = None,
+        mood: str | None = None,
+        lyrics: str | None = None,
+        title: str | None = None,
+        tempo: int | None = None,
+        musical_key: str | None = None,
+        instruments: list[str] | None = None,
+        language: str = "en",
+        instrumental: bool = False,
+        enhance_prompt: bool = True,
+        generate_lyrics: bool = False,
+        generate_cover: bool = True,
+        parent_id: int | None = None,
+        parent_type: str | None = None,
+        pipeline: str | None = None,
     ) -> Generation:
         task_id = uuid.uuid4().hex
         llm_provider_name: str | None = None
@@ -130,7 +132,8 @@ class GenerationService:
         # Dispatch generation as an async background task
         task = asyncio.create_task(
             self._run_generation_background(
-                gen.task_id, music_req, music_provider, generate_cover
+                gen.task_id, music_req, music_provider, generate_cover,
+                pipeline=pipeline,
             )
         )
         _running_tasks[gen.task_id] = task
@@ -139,11 +142,11 @@ class GenerationService:
         return gen
 
     async def extend_generation(
-            self,
-            generation_id: int,
-            prompt: str | None = None,
-            lyrics: str | None = None,
-            duration: float = 30.0,
+        self,
+        generation_id: int,
+        prompt: str | None = None,
+        lyrics: str | None = None,
+        duration: float = 30.0,
     ) -> Generation:
         """Create a new generation that extends an existing one."""
         parent = await self._repo.get_by_id(generation_id)
@@ -170,14 +173,14 @@ class GenerationService:
         )
 
     async def remix_generation(
-            self,
-            generation_id: int,
-            genre: str | None = None,
-            mood: str | None = None,
-            tempo: int | None = None,
-            musical_key: str | None = None,
-            instruments: list[str] | None = None,
-            prompt: str | None = None,
+        self,
+        generation_id: int,
+        genre: str | None = None,
+        mood: str | None = None,
+        tempo: int | None = None,
+        musical_key: str | None = None,
+        instruments: list[str] | None = None,
+        prompt: str | None = None,
     ) -> Generation:
         """Create a remix/variation of an existing generation."""
         parent = await self._repo.get_by_id(generation_id)
@@ -219,18 +222,20 @@ class GenerationService:
         return True
 
     async def _run_generation_background(
-            self,
-            task_id: str,
-            music_req: MusicReq,
-            music_provider: "BaseMusicProvider",
-            generate_cover: bool = True,
+        self,
+        task_id: str,
+        music_req: MusicReq,
+        music_provider: "BaseMusicProvider",
+        generate_cover: bool = True,
+        pipeline: str | None = None,
     ) -> None:
         """Run music generation in background and update DB record via repository."""
         async with _generation_semaphore:
             try:
                 await asyncio.wait_for(
                     self._run_generation(
-                        task_id, music_req, music_provider, generate_cover
+                        task_id, music_req, music_provider, generate_cover,
+                        pipeline=pipeline,
                     ),
                     timeout=_GENERATION_TIMEOUT,
                 )
@@ -260,11 +265,12 @@ class GenerationService:
                     logger.exception("Failed to mark cancelled generation: %s", task_id)
 
     async def _run_generation(
-            self,
-            task_id: str,
-            music_req: MusicReq,
-            music_provider: "BaseMusicProvider",
-            generate_cover: bool = True,
+        self,
+        task_id: str,
+        music_req: MusicReq,
+        music_provider: "BaseMusicProvider",
+        generate_cover: bool = True,
+        pipeline: str | None = None,
     ) -> None:
         """Core generation logic extracted for timeout wrapping."""
         try:
@@ -289,12 +295,40 @@ class GenerationService:
                 progress_message="Generating audio...",
             )
 
-            response = await music_provider.generate(music_req)
+            if pipeline:
+                # All named pipelines (including "direct") go through pipeline system
+                pipelines_config = provider_manager._config.get("music", {}).get(
+                    "pipelines", {}
+                )
+                pipeline_cfg = pipelines_config.get(pipeline, {})
+                providers_dict = music_inference_service.resolve_pipeline_providers(
+                    pipeline, pipeline_cfg, provider_manager
+                )
+                for p in providers_dict.values():
+                    if not p.is_loaded:
+                        await p.load_model()
+                response = await music_inference_service.run_pipeline(
+                    pipeline, providers_dict, music_req
+                )
+            else:
+                # No pipeline specified -- use single-model infer with router default
+                response = await music_inference_service.infer(
+                    music_provider, music_req
+                )
 
             # Persist audio bytes to disk via storage service.
             if response.audio_data:
-                filename = await storage_service.save_audio(
-                    response.audio_data, response.format
+                gen_record = await self._repo.get_by_task_id(task_id)
+                audio_meta = {
+                    "title": (gen_record.title if gen_record and gen_record.title
+                              else music_req.prompt[:50]),
+                    "artist": "HikariWave AI",
+                    "genre": music_req.genre or "",
+                    "comment": music_req.prompt,
+                    "album": "HikariWave Generations",
+                }
+                filename = await storage_service.save_audio_with_metadata(
+                    response.audio_data, response.format, audio_meta
                 )
             else:
                 filename = Path(response.audio_path).name
@@ -340,14 +374,7 @@ class GenerationService:
 
     async def _generate_cover_art(self, task_id: str, gen: Generation) -> None:
         """Generate cover art for a completed generation. Never fails the generation."""
-        from backend.app.providers.image.base import ImageGenerationRequest
-
         try:
-            image_provider = provider_manager.get_image_provider()
-            if image_provider is None:
-                logger.debug("No image provider configured, skipping cover art")
-                return
-
             # Generate cover art prompt via LLM service
             cover_prompt = await llm_service.generate_cover_prompt(
                 title=gen.title,
@@ -356,17 +383,12 @@ class GenerationService:
                 lyrics=gen.lyrics,
             )
 
-            # Generate the image
-            image_req = ImageGenerationRequest(
-                prompt=cover_prompt,
-                width=image_provider.config.default_width,
-                height=image_provider.config.default_height,
-            )
-            image_resp = await image_provider.generate(image_req)
+            # Generate the image via LLM provider's image endpoint
+            image_path = await llm_service.generate_cover_image(cover_prompt)
 
             # Update the generation record with cover art info
             await self._repo.update_cover_art(
-                task_id, Path(image_resp.image_path).name, cover_prompt
+                task_id, Path(image_path).name, cover_prompt
             )
             logger.info("Cover art saved for task_id=%s", task_id)
 
@@ -376,23 +398,17 @@ class GenerationService:
             )
 
     async def generate_cover_for_existing(
-            self,
-            generation_id: int,
-            title: str | None = None,
-            genre: str | None = None,
-            mood: str | None = None,
-            lyrics: str | None = None,
+        self,
+        generation_id: int,
+        title: str | None = None,
+        genre: str | None = None,
+        mood: str | None = None,
+        lyrics: str | None = None,
     ) -> tuple[str, str]:
         """Generate cover art for an existing generation. Returns (path, prompt)."""
-        from backend.app.providers.image.base import ImageGenerationRequest
-
         gen = await self._repo.get_by_id(generation_id)
         if gen is None:
             raise ValueError(f"Generation {generation_id} not found")
-
-        image_provider = provider_manager.get_image_provider()
-        if image_provider is None:
-            raise RuntimeError("No image provider configured")
 
         # Use provided metadata or fall back to generation record
         art_title = title or gen.title
@@ -408,16 +424,11 @@ class GenerationService:
             lyrics=art_lyrics,
         )
 
-        # Generate the image
-        image_req = ImageGenerationRequest(
-            prompt=cover_prompt,
-            width=image_provider.config.default_width,
-            height=image_provider.config.default_height,
-        )
-        image_resp = await image_provider.generate(image_req)
+        # Generate the image via LLM provider's image endpoint
+        image_path = await llm_service.generate_cover_image(cover_prompt)
 
         # Update generation record
-        cover_basename = Path(image_resp.image_path).name
+        cover_basename = Path(image_path).name
         await self._repo.update_cover_art_by_id(
             generation_id, cover_basename, cover_prompt
         )
@@ -431,16 +442,16 @@ class GenerationService:
         return await self._repo.get_by_task_id(task_id)
 
     async def list_generations(
-            self,
-            offset: int = 0,
-            limit: int = 50,
-            search: str | None = None,
-            is_liked: bool | None = None,
-            genre: str | None = None,
-            mood: str | None = None,
-            status: str | None = None,
-            sort: str = "created_at",
-            sort_dir: str = "desc",
+        self,
+        offset: int = 0,
+        limit: int = 50,
+        search: str | None = None,
+        is_liked: bool | None = None,
+        genre: str | None = None,
+        mood: str | None = None,
+        status: str | None = None,
+        sort: str = "created_at",
+        sort_dir: str = "desc",
     ) -> tuple[list[Generation], int]:
         return await self._repo.list_all(
             offset=offset,

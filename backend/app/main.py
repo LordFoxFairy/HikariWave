@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -39,13 +38,8 @@ async def lifespan(app: FastAPI):
         )
     # Load provider config
     provider_manager.load_config()
-    # Preload music model in background (non-blocking)
-    preload_task = asyncio.create_task(
-        provider_manager.preload_music_model()
-    )
+    # Models are downloaded on-demand via the marketplace/providers API
     yield
-    # Shutdown: cancel preload if still running
-    preload_task.cancel()
     # Unload music model if loaded
     try:
         provider = provider_manager.get_music_provider()

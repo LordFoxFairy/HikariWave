@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 class LLMProviderConfig(BaseModel):
     name: str
     provider_type: str = "openai"
+    label: str = Field(
+        default="",
+        description="Optional label to select a variant within the same provider type",
+    )
     base_url: str = ""
     api_key: str = ""
     models: list[str] = Field(default_factory=list)
@@ -48,7 +52,8 @@ class LLMProvider:
         self._current_model_name = model
         logger.info(
             "LLM model initialised: %s (provider=%s)",
-            model, self.config.provider_type,
+            model,
+            self.config.provider_type,
         )
 
     async def health_check(self) -> bool:
