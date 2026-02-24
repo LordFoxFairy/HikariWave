@@ -22,7 +22,7 @@ backend:
 
 # 安装所有依赖
 install:
-	uv sync
+	uv sync --extra ace-step
 	cd desktop && bun install
 
 # Lint 检查（后端 + 前端）

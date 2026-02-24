@@ -10,7 +10,7 @@ import {
     EMPTY_PROVIDER,
     LLM_ROUTER_TASKS,
     PROVIDER_TYPE_COLORS,
-    PROVIDER_TYPE_LABELS,
+    PROVIDER_TYPE_LABEL_KEYS,
 } from "../../constants/providerOptions";
 import type {LLMConfig, LLMProviderEntry, LLMProviderType, LLMTestResponse,} from "../../types";
 
@@ -318,7 +318,7 @@ function LLMProviderCard({
                         className={`px-1.5 py-0.5 rounded text-[10px] font-medium
                         ${PROVIDER_TYPE_COLORS[provider.type]}`}
                     >
-            {PROVIDER_TYPE_LABELS[provider.type]}
+            {t(PROVIDER_TYPE_LABEL_KEYS[provider.type])}
           </span>
                     {isDefault && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-medium

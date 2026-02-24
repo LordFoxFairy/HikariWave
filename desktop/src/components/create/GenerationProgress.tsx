@@ -1,3 +1,4 @@
+import {useTranslation} from "react-i18next";
 import {AnimatePresence, motion} from "framer-motion";
 import {X} from "lucide-react";
 import {WAVEFORM_RANDOMS} from "../../constants/musicOptions";
@@ -10,6 +11,7 @@ interface GenerationProgressProps {
 }
 
 export function GenerationProgress({progressMessage, onCancel}: GenerationProgressProps) {
+    const {t} = useTranslation();
     const store = useCreateStore();
     const isGenerating = store.generationStatus === "pending" || store.generationStatus === "processing";
 
@@ -43,10 +45,10 @@ export function GenerationProgress({progressMessage, onCancel}: GenerationProgre
                         </div>
 
                         <h3 className="text-lg font-semibold text-text-primary mb-1.5">
-                            Creating your song...
+                            {t("create.creatingYourSong")}
                         </h3>
                         <p className="text-sm text-text-tertiary mb-5">
-                            {progressMessage || "AI is composing something special for you"}
+                            {progressMessage || t("create.aiComposingSpecial")}
                         </p>
 
                         {/* Progress bar */}
@@ -80,7 +82,7 @@ export function GenerationProgress({progressMessage, onCancel}: GenerationProgre
                          transition-colors cursor-pointer"
                         >
                             <X className="w-3.5 h-3.5"/>
-                            Cancel
+                            {t("create.cancel")}
                         </button>
                     </div>
                 </motion.div>

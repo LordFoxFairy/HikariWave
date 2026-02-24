@@ -1,10 +1,34 @@
 import asyncio
 import logging
+import os
+import re
 
 from backend.app.core.config import load_raw_yaml_config, save_yaml_config
 from backend.app.providers.manager import provider_manager
 
+_ENV_VAR_RE = re.compile(r"\$\{(\w+)\}")
+
 logger = logging.getLogger(__name__)
+
+
+def _preserve_env_ref(new_value: str, original_raw: str | None) -> str:
+    """Return *original_raw* if it contains ``${...}`` and resolves to *new_value*.
+
+    This prevents overwriting env var references in ``config.yaml`` with
+    their resolved values when the user hasn't actually changed them.
+    """
+    if not original_raw or not _ENV_VAR_RE.search(original_raw):
+        return new_value
+
+    # Resolve the original raw value and compare
+    def _resolve(raw: str) -> str:
+        return _ENV_VAR_RE.sub(
+            lambda m: os.environ.get(m.group(1), ""), raw,
+        )
+
+    if _resolve(original_raw) == new_value:
+        return original_raw
+    return new_value
 
 
 class ProviderConfigService:
@@ -32,6 +56,12 @@ class ProviderConfigService:
         raw_config = await asyncio.to_thread(load_raw_yaml_config)
         raw_config.setdefault("llm", {})
 
+        # Build lookup of original raw entries so we can preserve ${...}
+        # env var references when the resolved value hasn't changed.
+        orig_by_name: dict[str, dict] = {}
+        for orig in raw_config.get("llm", {}).get("providers", []):
+            orig_by_name[orig.get("name", "")] = orig
+
         yaml_providers = []
         for p in providers:
             entry: dict = {"name": p["name"]}
@@ -39,9 +69,15 @@ class ProviderConfigService:
             if ptype != p["name"]:
                 entry["type"] = ptype
             if p.get("base_url"):
-                entry["base_url"] = p["base_url"]
+                entry["base_url"] = _preserve_env_ref(
+                    p["base_url"],
+                    orig_by_name.get(p["name"], {}).get("base_url"),
+                )
             if p.get("api_key"):
-                entry["api_key"] = p["api_key"]
+                entry["api_key"] = _preserve_env_ref(
+                    p["api_key"],
+                    orig_by_name.get(p["name"], {}).get("api_key"),
+                )
             if p.get("models"):
                 entry["models"] = p["models"]
             yaml_providers.append(entry)
@@ -70,7 +106,9 @@ class ProviderConfigService:
         )
 
         try:
-            test_model = model or "gpt-3.5-turbo"
+            if not model:
+                raise ValueError("A model name is required for connection testing")
+            test_model = model
             init_kwargs: dict = {
                 "temperature": 0,
                 "max_tokens": 5,

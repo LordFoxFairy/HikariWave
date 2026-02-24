@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from backend.app.api.dependencies import get_generation_service
 from backend.app.schemas.generation import GenerationResponse
-from backend.app.services.generation import GenerationService
+from backend.app.services.music_generation import GenerationService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 

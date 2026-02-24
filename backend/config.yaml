@@ -27,33 +27,25 @@ music:
       model_id: stabilityai/stable-audio-open-1.0
     - name: audioldm2-music
       model_id: cvssp/audioldm2-music
-  - name: diffrhythm
-    type: huggingface
-    models:
     - name: diffrhythm-full
       model_id: ASLP-lab/DiffRhythm-1_2-full
     - name: diffrhythm-base
       model_id: ASLP-lab/DiffRhythm-1_2
+    - name: heartmula-3b
+      model_id: HeartMuLa/HeartMuLa-oss-3B
   - name: acestep
     type: acestep
     models:
     - name: ace-step-v1.5
+      label: official
       model_id: ACE-Step/Ace-Step1.5
-      model_kwargs:
-        subfolder: acestep-v15-turbo
-  - name: acestep-official
-    type: acestep
-    label: official
-    models:
-    - name: ace-step-v1.5
       model_kwargs:
         config_path: acestep-v15-turbo
         device: auto
         use_mlx_dit: true
-  - name: heartmula
-    type: huggingface
-    models:
-    - name: heartmula-3b
-      model_id: HeartMuLa/HeartMuLa-oss-3B
+    - name: ace-step-v1.5-custom
+      model_id: ACE-Step/Ace-Step1.5
+      model_kwargs:
+        subfolder: acestep-v15-turbo
   router:
-    default: acestep-official:ace-step-v1.5
+    default: acestep:ace-step-v1.5:official

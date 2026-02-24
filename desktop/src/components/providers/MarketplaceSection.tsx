@@ -40,15 +40,15 @@ export function MarketplaceSection({
             setSearchQuery(q);
             if (debounceRef.current) clearTimeout(debounceRef.current);
             debounceRef.current = setTimeout(() => {
-                searchModels(q, pipelineTag);
+                searchModels(q, pipelineTag, sortBy);
             }, 300);
         },
-        [setSearchQuery, searchModels, pipelineTag],
+        [setSearchQuery, searchModels, pipelineTag, sortBy],
     );
 
     const handleSort = (sort: string) => {
         setSortBy(sort);
-        searchModels(searchQuery, pipelineTag);
+        searchModels(searchQuery, pipelineTag, sort);
     };
 
     const cachedRepoIds = new Set(cachedModels.map((c) => c.repo_id));

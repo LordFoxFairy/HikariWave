@@ -62,6 +62,15 @@ class LLMProviderManager:
             )
         return result
 
+    @staticmethod
+    def _mask_api_key(key: str) -> str:
+        """Mask an API key, showing only the last 4 characters."""
+        if not key:
+            return ""
+        if len(key) <= 4:
+            return "****"
+        return f"sk-...{key[-4:]}"
+
     def get_config(self, full_config: dict) -> dict:
         """Return the full LLM configuration: providers + router."""
         providers = []
@@ -70,7 +79,7 @@ class LLMProviderManager:
                 "name": entry["name"],
                 "type": entry.get("type", entry["name"]),
                 "base_url": entry.get("base_url", ""),
-                "api_key": entry.get("api_key", ""),
+                "api_key": self._mask_api_key(entry.get("api_key", "")),
                 "models": entry.get("models", []),
             }
             if entry.get("label"):

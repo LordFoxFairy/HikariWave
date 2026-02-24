@@ -11,8 +11,6 @@ from backend.app.schemas.generation import (
     LyricsGenerationRequest,
     LyricsResponse,
     MusicGenerationRequest,
-    PipelineInfo,
-    PipelineListResponse,
     PromptEnhancementRequest,
     RemixRequest,
     StyleSuggestionRequest,
@@ -21,21 +19,12 @@ from backend.app.schemas.generation import (
     TitleGenerationRequest,
     TitleGenerationResponse,
 )
-from backend.app.services.generation import GenerationService
+from backend.app.services.music_generation import GenerationService
 from backend.app.services.llm_service import LLMService
-from backend.app.services.music import music_inference_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/generate", tags=["generate"])
-
-
-@router.get("/pipelines", response_model=PipelineListResponse)
-async def list_pipelines():
-    items = music_inference_service.list_pipelines()
-    return PipelineListResponse(
-        pipelines=[PipelineInfo(**p) for p in items],
-    )
 
 
 @router.post("/music", response_model=TaskResponse)
@@ -58,7 +47,6 @@ async def generate_music(
         enhance_prompt=req.enhance_prompt,
         generate_lyrics=req.generate_lyrics,
         generate_cover=req.generate_cover,
-        pipeline=req.pipeline,
     )
     return TaskResponse(task_id=gen.task_id, status=gen.status)
 
@@ -105,22 +93,27 @@ async def generate_lyrics(
     req: LyricsGenerationRequest,
     llm: LLMService = Depends(get_llm_service),
 ):
-    lyrics = await llm.generate_lyrics(
-        req.prompt, genre=req.genre, mood=req.mood, language=req.language
-    )
-    # Try to include style suggestions alongside lyrics
-    suggestions = None
     try:
-        suggestions = await llm.suggest_style(req.prompt)
-    except Exception:
-        logger.debug("Style suggestion alongside lyrics failed, skipping")
+        lyrics = await llm.generate_lyrics(
+            req.prompt, genre=req.genre, mood=req.mood, language=req.language
+        )
+        # Try to include style suggestions alongside lyrics
+        suggestions = None
+        try:
+            suggestions = await llm.suggest_style(req.prompt)
+        except Exception:
+            logger.debug("Style suggestion alongside lyrics failed, skipping")
 
-    return LyricsResponse(
-        lyrics=lyrics,
-        genre=req.genre,
-        mood=req.mood,
-        suggestions=suggestions,
-    )
+        return LyricsResponse(
+            lyrics=lyrics,
+            genre=req.genre,
+            mood=req.mood,
+            suggestions=suggestions,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/enhance-prompt", response_model=EnhancedPromptResponse)
@@ -128,11 +121,14 @@ async def enhance_prompt(
     req: PromptEnhancementRequest,
     llm: LLMService = Depends(get_llm_service),
 ):
-    enhanced = await llm.enhance_prompt(req.prompt, genre=req.genre, mood=req.mood)
-    return EnhancedPromptResponse(
-        original_prompt=req.prompt,
-        enhanced_prompt=enhanced,
-    )
+    try:
+        enhanced = await llm.enhance_prompt(req.prompt, genre=req.genre, mood=req.mood)
+        return EnhancedPromptResponse(
+            original_prompt=req.prompt,
+            enhanced_prompt=enhanced,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/suggest-style", response_model=StyleSuggestionResponse)
@@ -140,8 +136,11 @@ async def suggest_style(
     req: StyleSuggestionRequest,
     llm: LLMService = Depends(get_llm_service),
 ):
-    suggestions = await llm.suggest_style(req.prompt)
-    return StyleSuggestionResponse(suggestions=suggestions)
+    try:
+        suggestions = await llm.suggest_style(req.prompt)
+        return StyleSuggestionResponse(suggestions=suggestions)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/title", response_model=TitleGenerationResponse)
@@ -149,10 +148,13 @@ async def generate_title(
     req: TitleGenerationRequest,
     llm: LLMService = Depends(get_llm_service),
 ):
-    title = await llm.generate_title(
-        lyrics=req.lyrics, genre=req.genre, mood=req.mood, prompt=req.prompt
-    )
-    return TitleGenerationResponse(title=title)
+    try:
+        title = await llm.generate_title(
+            lyrics=req.lyrics, genre=req.genre, mood=req.mood, prompt=req.prompt
+        )
+        return TitleGenerationResponse(title=title)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/cover-art", response_model=CoverArtResponse)
@@ -179,3 +181,4 @@ async def generate_cover_art(
             detail=f"Image generation failed: {exc!s}",
         )
     return CoverArtResponse(cover_art_path=path, prompt_used=prompt_used)
+

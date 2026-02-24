@@ -14,7 +14,6 @@ import type {
     LLMTestResponse,
     MusicProviderConfig,
     MusicProviderListResponse,
-    PipelineInfo,
     RemixRequest,
     StyleSuggestion,
     StyleSuggestRequest,
@@ -54,10 +53,6 @@ export const api = {
             method: "POST",
             body: JSON.stringify(data),
         });
-    },
-
-    listPipelines() {
-        return request<{ pipelines: PipelineInfo[] }>("/generate/pipelines");
     },
 
     generateLyrics(data: GenerateLyricsRequest) {

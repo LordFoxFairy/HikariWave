@@ -184,7 +184,7 @@ export default function LibraryPage() {
                             }`}
                         >
                             <SlidersHorizontal className="w-3.5 h-3.5"/>
-                            {store.filters.genre || t("library.genre")}
+                            {store.filters.genre ? t(`tags.genres.${store.filters.genre}`, store.filters.genre) : t("library.genre")}
                             <ChevronDown className="w-3 h-3"/>
                         </button>
                         <AnimatePresence>
@@ -216,7 +216,7 @@ export default function LibraryPage() {
                                                 : "text-text-secondary hover:bg-surface-secondary"
                                             }`}
                                         >
-                                            {g}
+                                            {t(`tags.genres.${g}`, g)}
                                         </button>
                                     ))}
                                 </motion.div>
@@ -309,7 +309,7 @@ export default function LibraryPage() {
                     <LoadingSkeleton viewMode={store.viewMode}/>
                 ) : store.error ? (
                     <ErrorState
-                        error={store.error}
+                        error={t(store.error)}
                         onRetry={() => store.fetchGenerations()}
                     />
                 ) : store.generations.length === 0 ? (

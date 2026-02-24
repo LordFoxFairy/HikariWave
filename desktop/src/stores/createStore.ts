@@ -45,7 +45,6 @@ interface CreateState {
     instruments: string[];
     language: string;
     instrumental: boolean;
-    pipeline: string;
     generationStatus: GenerationStatus | "idle";
     currentTaskId: string | null;
     progress: number;
@@ -65,7 +64,6 @@ interface CreateState {
     toggleInstrument: (instrument: string) => void;
     setLanguage: (language: string) => void;
     setInstrumental: (instrumental: boolean) => void;
-    setPipeline: (pipeline: string) => void;
     setGenerationStatus: (status: GenerationStatus | "idle") => void;
     setCurrentTaskId: (id: string | null) => void;
     setProgress: (progress: number) => void;
@@ -96,7 +94,6 @@ const initialState = {
     instruments: [] as string[],
     language: "Chinese",
     instrumental: false,
-    pipeline: "",
     generationStatus: "idle" as GenerationStatus | "idle",
     currentTaskId: null as string | null,
     progress: 0,
@@ -135,7 +132,6 @@ export const useCreateStore = create<CreateState>((set) => ({
         })),
     setLanguage: (language) => set({language}),
     setInstrumental: (instrumental) => set({instrumental}),
-    setPipeline: (pipeline) => set({pipeline}),
     setGenerationStatus: (status) => set({generationStatus: status}),
     setCurrentTaskId: (id) => set({currentTaskId: id}),
     setProgress: (progress) => set({progress}),

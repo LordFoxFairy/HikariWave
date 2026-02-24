@@ -33,6 +33,11 @@ class LLMProvider:
         self._model = None
         self._current_model_name: str | None = None
 
+    @property
+    def current_model_name(self) -> str | None:
+        """The name of the currently loaded model, or ``None``."""
+        return self._current_model_name
+
     async def init_model(self, model: str, **kwargs) -> None:
         """Create the model client via LangChain's init_chat_model."""
         init_kwargs: dict = {}
@@ -40,8 +45,6 @@ class LLMProvider:
             init_kwargs["api_key"] = self.config.api_key
         if self.config.base_url:
             init_kwargs["base_url"] = self.config.base_url
-        init_kwargs["temperature"] = kwargs.get("temperature", 0.8)
-        init_kwargs["max_tokens"] = kwargs.get("max_tokens", 2048)
 
         self._model = await asyncio.to_thread(
             init_chat_model,
@@ -59,8 +62,10 @@ class LLMProvider:
     async def health_check(self) -> bool:
         try:
             if not self.is_loaded:
-                model = self.config.models[0] if self.config.models else "gpt-3.5-turbo"
-                await self.init_model(model, temperature=0, max_tokens=5)
+                if not self.config.models:
+                    logger.warning("No models configured for provider %s", self.config.name)
+                    return False
+                await self.init_model(self.config.models[0])
             await self._model.ainvoke([HumanMessage(content="ping")])
         except Exception:
             logger.exception("LLM health check failed (%s)", self.config.name)

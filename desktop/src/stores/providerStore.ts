@@ -11,7 +11,7 @@ interface ProviderState {
     searchResults: HFModelInfo[];
     searchLoading: boolean;
     setSearchQuery: (q: string) => void;
-    searchModels: (query: string, pipelineTag: string) => Promise<void>;
+    searchModels: (query: string, pipelineTag: string, sort?: string) => Promise<void>;
 
     // Downloads
     downloads: DownloadProgress[];
@@ -33,10 +33,10 @@ export const useProviderStore = create<ProviderState>((set) => ({
     searchLoading: false,
     setSearchQuery: (q) => set({searchQuery: q}),
 
-    searchModels: async (query, pipelineTag) => {
+    searchModels: async (query, pipelineTag, sort) => {
         set({searchLoading: true});
         try {
-            const res = await api.searchModels(query, pipelineTag);
+            const res = await api.searchModels(query, pipelineTag, sort);
             set({searchResults: res.models});
         } catch {
             set({searchResults: []});

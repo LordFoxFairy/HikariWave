@@ -50,12 +50,6 @@ export interface GenerateMusicRequest {
     language?: string;
     instrumental?: boolean;
     generate_cover?: boolean;
-    pipeline?: string;
-}
-
-export interface PipelineInfo {
-    name: string;
-    description: string;
 }
 
 export interface ExtendRequest {

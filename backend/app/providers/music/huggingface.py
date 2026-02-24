@@ -12,12 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import gc
-import io
 import logging
 from typing import Any
-
-import numpy as np
-import soundfile as sf
 
 from backend.app.providers.music.base import (
     BaseMusicProvider,
@@ -25,21 +21,12 @@ from backend.app.providers.music.base import (
     MusicGenerationResponse,
     MusicProviderConfig,
 )
+from backend.app.providers.music.utils import select_device, to_wav
 
 logger = logging.getLogger(__name__)
 
 _TOKENS_PER_SECOND = 50
 _MAX_TOKENS = 1503
-
-
-def _select_device() -> str:
-    import torch
-
-    if torch.cuda.is_available():
-        return "cuda"
-    if torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
 
 
 class HuggingFaceMusicProvider(BaseMusicProvider):
@@ -77,7 +64,7 @@ class HuggingFaceMusicProvider(BaseMusicProvider):
             )
 
         self._device = (
-            _select_device()
+            select_device()
             if (self.config.device or "auto") == "auto"
             else self.config.device
         )
@@ -122,9 +109,6 @@ class HuggingFaceMusicProvider(BaseMusicProvider):
             return
         device = self._device
         for attr in ("_model", "_processor"):
-            obj = getattr(self, attr, None)
-            if obj is not None:
-                del obj
             setattr(self, attr, None)
         gc.collect()
         try:
@@ -202,7 +186,7 @@ class HuggingFaceMusicProvider(BaseMusicProvider):
             audio_np = audio_values[0].cpu().float().numpy()
             encoder_cfg = getattr(self._model.config, "audio_encoder", None)
             sr = getattr(encoder_cfg or self._model.config, "sampling_rate", 32000)
-            return _to_wav(audio_np, sr)
+            return to_wav(audio_np, sr)
 
         return await self._run_in_thread(_run)
 
@@ -233,7 +217,7 @@ class HuggingFaceMusicProvider(BaseMusicProvider):
             )
 
             audio, sr = _parse_result(result)
-            return _to_wav(audio, sr)
+            return to_wav(audio, sr)
 
         return await self._run_in_thread(_run)
 
@@ -277,22 +261,3 @@ def _parse_result(result: Any) -> tuple[Any, int]:
     return result, 44100
 
 
-def _to_wav(audio: Any, sr: int) -> tuple[bytes, int]:
-    """Convert audio tensor/array to WAV bytes."""
-    if hasattr(audio, "cpu"):
-        audio = audio.cpu().float()
-        peak = audio.abs().max()
-        if peak > 0:
-            audio = audio / peak
-        audio_np = audio.numpy()
-    else:
-        audio_np = np.asarray(audio, dtype=np.float32)
-
-    if audio_np.ndim > 2:
-        audio_np = audio_np.squeeze(axis=0)
-    if audio_np.ndim == 2 and audio_np.shape[0] < audio_np.shape[1]:
-        audio_np = audio_np.T
-
-    buf = io.BytesIO()
-    sf.write(buf, audio_np, sr, format="WAV")
-    return buf.getvalue(), sr

@@ -1,4 +1,5 @@
 import {forwardRef} from "react";
+import {useTranslation} from "react-i18next";
 import {AnimatePresence, motion} from "framer-motion";
 import {GitBranch, Image, Loader2, Music, Pause, Play, Repeat, RotateCcw, Shuffle, X,} from "lucide-react";
 import type {Generation} from "../../types";
@@ -39,6 +40,7 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
         },
         ref,
     ) {
+        const {t} = useTranslation();
         const store = useCreateStore();
         const isCompleted = store.generationStatus === "completed";
         const isFailed = store.generationStatus === "failed";
@@ -79,7 +81,7 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
                                         bg-white/90 text-[11px] font-medium text-text-primary shadow-sm">
                                                     <Image className="w-3 h-3"/>
-                                                    Regenerate
+                                                    {t("create.regenerate")}
                                                 </div>
                                             </button>
                                         </div>
@@ -90,19 +92,19 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                         </div>
                                     )}
                                     <h3 className="text-lg font-bold text-text-primary mb-1">
-                                        {completedGen?.title || "Song Created!"}
+                                        {completedGen?.title || t("create.songCreated")}
                                     </h3>
 
                                     {/* Lineage info */}
                                     {completedGen?.parent_id && completedGen?.parent_type && (
                                         <p className="text-[12px] text-text-tertiary flex items-center justify-center gap-1.5 mb-1">
                                             <GitBranch className="w-3 h-3"/>
-                                            {completedGen.parent_type === "extend" ? "Extended from" : "Remix of"} #{completedGen.parent_id}
+                                            {completedGen.parent_type === "extend" ? t("create.extendedFrom") : t("create.remixOf")} #{completedGen.parent_id}
                                         </p>
                                     )}
 
                                     <p className="text-sm text-text-tertiary mb-4">
-                                        Your creation is ready!
+                                        {t("create.goToLibrary")}
                                     </p>
 
                                     {/* Play button */}
@@ -118,12 +120,12 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                             {isPlayingThis ? (
                                                 <>
                                                     <Pause className="w-4 h-4"/>
-                                                    Pause
+                                                    {t("create.pause")}
                                                 </>
                                             ) : (
                                                 <>
                                                     <Play className="w-4 h-4"/>
-                                                    Play Now
+                                                    {t("create.playNow")}
                                                 </>
                                             )}
                                         </button>
@@ -133,7 +135,7 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                 {(completedGen?.lyrics || store.lyrics) && (
                                     <div className="text-left">
                     <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
-                      Lyrics
+                      {t("create.lyrics")}
                     </span>
                                         <pre className="text-[13px] text-text-primary mt-2 font-mono whitespace-pre-wrap leading-relaxed
                                     bg-surface-secondary rounded-xl p-4 max-h-52 overflow-y-auto border border-border-light">
@@ -153,7 +155,7 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                             : "text-text-secondary bg-white border-border hover:border-primary-200 hover:text-text-primary"}`}
                                     >
                                         <Repeat className="w-3.5 h-3.5"/>
-                                        Extend
+                                        {t("create.extend")}
                                     </button>
                                     <button
                                         onClick={onOpenRemixForm}
@@ -164,7 +166,7 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                             : "text-text-secondary bg-white border-border hover:border-accent-200 hover:text-text-primary"}`}
                                     >
                                         <Shuffle className="w-3.5 h-3.5"/>
-                                        Remix
+                                        {t("create.remix")}
                                     </button>
                                     <button
                                         onClick={onRegenerateCover}
@@ -179,7 +181,7 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                         ) : (
                                             <Image className="w-3.5 h-3.5"/>
                                         )}
-                                        Regen Cover
+                                        {t("create.regenCover")}
                                     </button>
                                     <button
                                         onClick={onCreateAnother}
@@ -189,7 +191,7 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                transition-colors cursor-pointer"
                                     >
                                         <RotateCcw className="w-3.5 h-3.5"/>
-                                        Create Another
+                                        {t("create.createAnother")}
                                     </button>
                                 </div>
 
@@ -203,10 +205,10 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                     <X className="w-7 h-7 text-red-500"/>
                                 </div>
                                 <h3 className="text-lg font-semibold text-text-primary mb-1">
-                                    Generation Failed
+                                    {t("create.generationFailed")}
                                 </h3>
                                 <p className="text-sm text-text-tertiary mb-6">
-                                    Something went wrong. Please try again.
+                                    {t("create.somethingWrong")}
                                 </p>
                                 <div className="flex justify-center gap-3">
                                     <button
@@ -215,7 +217,7 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                text-text-secondary bg-white border border-border
                                hover:bg-surface-secondary transition-colors cursor-pointer"
                                     >
-                                        Dismiss
+                                        {t("create.dismiss")}
                                     </button>
                                     <button
                                         onClick={onRetryGenerate}
@@ -224,7 +226,7 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                transition-colors cursor-pointer"
                                     >
                                         <RotateCcw className="w-4 h-4"/>
-                                        Try Again
+                                        {t("create.tryAgain")}
                                     </button>
                                 </div>
                             </div>

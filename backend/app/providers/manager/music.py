@@ -49,39 +49,61 @@ class MusicProviderManager:
         self.providers.clear()
         for entry in config.get("music", {}).get("providers", []):
             provider_type = entry.get("type", "huggingface")
-            label = entry.get("label", "")
+            provider_label = entry.get("label", "")
             for model_entry in entry.get("models", []):
                 if isinstance(model_entry, dict):
                     model_name = model_entry["name"]
                     model_id = model_entry.get("model_id", "")
+                    # Model-level label takes priority over provider-level
+                    label = model_entry.get("label", "") or provider_label
                 else:
                     model_name = model_entry
                     model_id = ""
+                    label = provider_label
                 model_kwargs = (
                     model_entry.get("model_kwargs", {})
                     if isinstance(model_entry, dict)
                     else {}
                 )
+                # Key format: "provider:model" or "provider:model:label"
+                key = f"{entry['name']}:{model_name}"
+                if label:
+                    key = f"{key}:{label}"
                 cfg = MusicProviderConfig(
-                    name=f"{entry['name']}:{model_name}",
+                    name=key,
                     provider_type=provider_type,
                     label=label,
                     model_name=model_name,
                     model_id=model_id,
                     model_kwargs=model_kwargs,
                 )
-                key = f"{entry['name']}:{model_name}"
                 cls = _resolve_provider_class(provider_type, label)
                 self.providers[key] = cls(cfg)
 
         self._router = config.get("music", {}).get("router", {})
 
-    def get_provider(self) -> BaseMusicProvider:
-        """Get the default music provider based on router config."""
-        route = self._router.get("default", "")
+    def _resolve_route(self, route: str) -> BaseMusicProvider | None:
+        """Resolve a route string to a provider.
+
+        Supports both ``provider:model`` and ``provider:model:label``.
+        If an exact match isn't found and the route has no label part,
+        try matching the first provider whose key starts with the route.
+        """
         provider = self.providers.get(route)
+        if provider is not None:
+            return provider
+        # Fallback: route without label, find first key that matches prefix
+        prefix = route + ":"
+        for key, p in self.providers.items():
+            if key.startswith(prefix) or key == route:
+                return p
+        return None
+
+    def get_provider(self, task: str = "default") -> BaseMusicProvider:
+        """Get a music provider based on router config for the given task."""
+        route = self._router.get(task, "") or self._router.get("default", "")
+        provider = self._resolve_route(route)
         if provider is None:
-            # Fallback: return the first available provider
             if self.providers:
                 return next(iter(self.providers.values()))
             raise RuntimeError(f"Music provider not found: {route}")
@@ -113,6 +135,8 @@ class MusicProviderManager:
                         "name": m["name"],
                         "model_id": m.get("model_id", ""),
                     }
+                    if m.get("label"):
+                        entry_dict["label"] = m["label"]
                     if m.get("model_kwargs"):
                         entry_dict["model_kwargs"] = m["model_kwargs"]
                     models.append(entry_dict)

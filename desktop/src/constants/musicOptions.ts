@@ -66,9 +66,3 @@ export function tempoLabelKey(bpm: number): string {
     if (bpm < 140) return "create.fast";
     return "create.veryFast";
 }
-
-export function formatDuration(seconds: number): string {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-}

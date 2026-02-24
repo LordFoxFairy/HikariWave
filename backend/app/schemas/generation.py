@@ -17,8 +17,6 @@ class StyleSuggestion(BaseModel):
 
 class StyleSuggestionRequest(BaseModel):
     prompt: str = Field(..., description="Theme or lyrics to analyze")
-    genre: str | None = None
-    mood: str | None = None
 
 
 class StyleSuggestionResponse(BaseModel):
@@ -91,10 +89,6 @@ class MusicGenerationRequest(BaseModel):
     language: str = "en"
     instrumental: bool = False
     seed: int | None = None
-    pipeline: str | None = Field(
-        default=None,
-        description="Pipeline strategy name (e.g. 'vocal_instrumental'). None = direct single-model.",
-    )
     enhance_prompt: bool = Field(
         default=True,
         description="Whether to enhance the prompt via LLM",
@@ -135,18 +129,6 @@ class LyricsResponse(BaseModel):
 class EnhancedPromptResponse(BaseModel):
     original_prompt: str
     enhanced_prompt: str
-
-
-# --- Pipeline ---
-
-
-class PipelineInfo(BaseModel):
-    name: str
-    description: str = ""
-
-
-class PipelineListResponse(BaseModel):
-    pipelines: list[PipelineInfo]
 
 
 # --- Task / Generation Responses ---

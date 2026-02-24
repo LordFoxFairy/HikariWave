@@ -1,7 +1,7 @@
 from backend.app.services.config_service import (
     provider_config_service as _provider_service,
 )
-from backend.app.services.generation import (
+from backend.app.services.music_generation import (
     generation_service as _generation_service,
 )
 from backend.app.services.llm_service import llm_service as _llm_service

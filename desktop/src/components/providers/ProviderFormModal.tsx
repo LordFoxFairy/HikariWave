@@ -1,6 +1,7 @@
+import {useTranslation} from "react-i18next";
 import {motion} from "framer-motion";
 import {AlertCircle, CheckCircle, Loader2, X, Zap,} from "lucide-react";
-import {DEFAULT_URLS, PROVIDER_TYPE_LABELS,} from "../../constants/providerOptions";
+import {DEFAULT_URLS, PROVIDER_TYPE_LABEL_KEYS,} from "../../constants/providerOptions";
 import type {LLMProviderEntry, LLMProviderType, LLMTestResponse,} from "../../types";
 
 interface ProviderFormModalProps {
@@ -32,6 +33,7 @@ export function ProviderFormModal({
                                       onSave,
                                       onClose,
                                   }: ProviderFormModalProps) {
+    const {t} = useTranslation();
     return (
         <motion.div
             initial={{opacity: 0}}
@@ -51,7 +53,7 @@ export function ProviderFormModal({
             >
                 <div className="flex items-center justify-between mb-5">
                     <h3 className="text-base font-semibold text-text-primary">
-                        {editingIndex !== null ? "Edit Provider" : "Add Provider"}
+                        {editingIndex !== null ? t("providers.editProvider") : t("providers.addProvider")}
                     </h3>
                     <button
                         onClick={onClose}
@@ -66,21 +68,21 @@ export function ProviderFormModal({
                     {/* Provider type */}
                     <div>
                         <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                            Type
+                            {t("providers.type")}
                         </label>
                         <div className="flex gap-2">
-                            {(Object.keys(PROVIDER_TYPE_LABELS) as LLMProviderType[]).map((t) => (
+                            {(Object.keys(PROVIDER_TYPE_LABEL_KEYS) as LLMProviderType[]).map((pt) => (
                                 <button
-                                    key={t}
-                                    onClick={() => onTypeChange(t)}
+                                    key={pt}
+                                    onClick={() => onTypeChange(pt)}
                                     className={`flex-1 px-3 py-2 rounded-lg border text-xs
                               font-medium transition-colors cursor-pointer ${
-                                        formData.type === t
+                                        formData.type === pt
                                             ? "border-primary-400 bg-primary-50 text-primary-700"
                                             : "border-border text-text-secondary hover:bg-surface-secondary"
                                     }`}
                                 >
-                                    {PROVIDER_TYPE_LABELS[t]}
+                                    {t(PROVIDER_TYPE_LABEL_KEYS[pt])}
                                 </button>
                             ))}
                         </div>
@@ -89,14 +91,14 @@ export function ProviderFormModal({
                     {/* Name */}
                     <div>
                         <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                            Name
+                            {t("providers.name")}
                         </label>
                         <input
                             value={formData.name}
                             onChange={(e) =>
                                 onFormDataChange((d) => ({...d, name: e.target.value}))
                             }
-                            placeholder="e.g. my-openrouter"
+                            placeholder={t("providers.namePlaceholder")}
                             className="w-full px-3 py-2 rounded-lg border border-border
                          bg-surface-secondary text-sm focus:outline-none
                          focus:ring-2 focus:ring-primary-300"
@@ -106,7 +108,7 @@ export function ProviderFormModal({
                     {/* Base URL */}
                     <div>
                         <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                            Base URL
+                            {t("providers.baseUrl")}
                         </label>
                         <input
                             value={formData.base_url}
@@ -123,7 +125,7 @@ export function ProviderFormModal({
                     {/* API Key */}
                     <div>
                         <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                            API Key
+                            {t("providers.apiKey")}
                         </label>
                         <input
                             type="password"
@@ -141,12 +143,12 @@ export function ProviderFormModal({
                     {/* Models */}
                     <div>
                         <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                            Models (comma-separated)
+                            {t("providers.models")}
                         </label>
                         <input
                             value={formModels}
                             onChange={(e) => onFormModelsChange(e.target.value)}
-                            placeholder="model-1, model-2"
+                            placeholder={t("providers.modelsPlaceholder")}
                             className="w-full px-3 py-2 rounded-lg border border-border
                          bg-surface-secondary text-sm focus:outline-none
                          focus:ring-2 focus:ring-primary-300"
@@ -168,7 +170,7 @@ export function ProviderFormModal({
                             ) : (
                                 <Zap className="w-3 h-3"/>
                             )}
-                            Test Connection
+                            {t("providers.testConnection")}
                         </button>
                         {testResult && (
                             <span
@@ -194,7 +196,7 @@ export function ProviderFormModal({
                          text-text-secondary hover:bg-surface-secondary
                          transition-colors cursor-pointer"
                         >
-                            Cancel
+                            {t("common.cancel")}
                         </button>
                         <button
                             onClick={onSave}
@@ -205,7 +207,7 @@ export function ProviderFormModal({
                          flex items-center gap-1.5"
                         >
                             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin"/>}
-                            {editingIndex !== null ? "Update" : "Add"}
+                            {editingIndex !== null ? t("providers.update") : t("providers.add")}
                         </button>
                     </div>
                 </div>

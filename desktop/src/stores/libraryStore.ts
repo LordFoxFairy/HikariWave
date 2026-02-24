@@ -85,7 +85,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
                 offset: offset + data.items.length,
             });
         } catch {
-            set({error: "Could not load tracks. Check backend connection."});
+            set({error: "library.loadError"});
         } finally {
             set({loading: false});
         }

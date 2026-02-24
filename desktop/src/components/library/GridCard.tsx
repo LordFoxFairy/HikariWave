@@ -1,4 +1,5 @@
 import {useState} from "react";
+import {useTranslation} from "react-i18next";
 import {Clock, GitBranch, Image, Loader2, Music, Play, Repeat, Shuffle, Star, Trash2,} from "lucide-react";
 import {motion} from "framer-motion";
 import type {Generation} from "../../types";
@@ -28,6 +29,7 @@ export default function GridCard({
                                      onRemix,
                                      onRegenCover,
                                  }: GridCardProps) {
+    const {t} = useTranslation();
     const gradient = getGradient(gen.genre);
     const hasCover = !!gen.cover_art_path;
     const displayTitle = gen.title || gen.prompt.slice(0, 50);
@@ -134,7 +136,7 @@ export default function GridCard({
                             : "bg-amber-500/30 text-white"
                         }`}
                     >
-            {gen.status}
+            {t(`library.${gen.status}`)}
           </span>
                 )}
             </div>
@@ -148,7 +150,7 @@ export default function GridCard({
                 {gen.parent_id && gen.parent_type && (
                     <p className="text-[10px] text-text-tertiary flex items-center gap-1 mb-2">
                         <GitBranch className="w-2.5 h-2.5"/>
-                        {gen.parent_type === "extend" ? "Extended" : "Remix"}
+                        {gen.parent_type === "extend" ? t("library.extended") : t("library.remixed")}
                     </p>
                 )}
 
@@ -178,28 +180,28 @@ export default function GridCard({
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                             onClick={onExtend}
-                            title="Extend"
+                            title={t("library.extend")}
                             className="p-1.5 rounded-lg hover:bg-primary-50 transition-colors cursor-pointer"
                         >
                             <Repeat className="w-3.5 h-3.5 text-text-tertiary hover:text-primary-600"/>
                         </button>
                         <button
                             onClick={onRemix}
-                            title="Remix"
+                            title={t("library.remix")}
                             className="p-1.5 rounded-lg hover:bg-accent-50 transition-colors cursor-pointer"
                         >
                             <Shuffle className="w-3.5 h-3.5 text-text-tertiary hover:text-accent-500"/>
                         </button>
                         <button
                             onClick={handleRegenCover}
-                            title="Regenerate Cover"
+                            title={t("library.regenCover")}
                             className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
                         >
                             <Image className="w-3.5 h-3.5 text-text-tertiary hover:text-blue-500"/>
                         </button>
                         <button
                             onClick={onDelete}
-                            title="Delete"
+                            title={t("library.delete")}
                             className="p-1.5 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
                         >
                             <Trash2 className="w-3.5 h-3.5 text-text-tertiary hover:text-red-500"/>

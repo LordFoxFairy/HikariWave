@@ -75,3 +75,5 @@ target/
 # Celery
 celerybeat-schedule
 celerybeat.pid
+
+backend/vendor/**

@@ -6,7 +6,7 @@ from backend.app.schemas.generation import (
     GenerationResponse,
     LikeResponse,
 )
-from backend.app.services.generation import GenerationService
+from backend.app.services.music_generation import GenerationService
 
 router = APIRouter(prefix="/generations", tags=["history"])
 

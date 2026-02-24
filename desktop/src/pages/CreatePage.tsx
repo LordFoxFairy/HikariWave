@@ -8,7 +8,6 @@ import {
     Globe,
     Guitar,
     KeyRound,
-    Layers,
     Loader2,
     Mic,
     Music,
@@ -22,7 +21,7 @@ import {
     X,
     Zap,
 } from "lucide-react";
-import type {ExtendRequest, Generation, PipelineInfo, RemixRequest} from "../types";
+import type {ExtendRequest, Generation, RemixRequest} from "../types";
 import {
     GENRE_OPTIONS,
     INSTRUMENT_OPTIONS,
@@ -36,13 +35,13 @@ import {api} from "../services/api";
 import {useTranslation} from "react-i18next";
 
 import {
-    formatDuration,
     genreColors,
     moodGradients,
     sectionVariants,
     STRUCTURE_TAGS,
     tempoLabelKey,
 } from "../constants/musicOptions";
+import {formatSeconds} from "../utils/format";
 import {CustomSelect} from "../components/CustomSelect";
 import {useTaskPolling} from "../hooks/useTaskPolling";
 import {GenerationProgress} from "../components/create/GenerationProgress";
@@ -55,7 +54,7 @@ export default function CreatePage() {
     const playerStore = usePlayerStore();
     const {t} = useTranslation();
     const [lyricsLoading, setLyricsLoading] = useState(false);
-    const [smartFilling, setSmartFilling] = useState(false);
+    const smartFillingRef = useRef(false);
     const [completedGen, setCompletedGen] = useState<Generation | null>(null);
     const resultRef = useRef<HTMLDivElement>(null);
     const lyricsRef = useRef<HTMLTextAreaElement>(null);
@@ -73,8 +72,6 @@ export default function CreatePage() {
     const [remixPrompt, setRemixPrompt] = useState("");
     const [coverRegenerating, setCoverRegenerating] = useState(false);
     const [extendRemixLoading, setExtendRemixLoading] = useState(false);
-    const [pipelines, setPipelines] = useState<PipelineInfo[]>([]);
-
     const {pollTask, cancelPolling, progressMessage} = useTaskPolling({resultRef});
 
     const isGenerating = store.generationStatus === "pending" || store.generationStatus === "processing";
@@ -127,13 +124,6 @@ export default function CreatePage() {
             return () => clearTimeout(timer);
         }
     }, [store.successMessage, store]);
-
-    // Fetch available pipelines
-    useEffect(() => {
-        api.listPipelines()
-            .then(res => setPipelines(res.pipelines))
-            .catch(() => {});
-    }, []);
 
     /* -- Insert structure tag at cursor in lyrics editor -- */
     const insertStructureTag = useCallback((tag: string) => {
@@ -243,90 +233,80 @@ export default function CreatePage() {
         }
     }, [store, t]);
 
-    /* -- Smart Mode: Fill all fields at once -- */
-    const handleSmartFill = useCallback(async () => {
-        if (!store.prompt.trim()) return;
-        setSmartFilling(true);
-        try {
-            const stylePromise = api.suggestStyle({
-                prompt: store.prompt.trim(),
-            }).catch(() => null);
-
-            const lyricsPromise = api.generateLyrics({
-                prompt: store.prompt.trim(),
-                language: store.language,
-            }).catch(() => null);
-
-            const [style, lyricsRes] = await Promise.all([stylePromise, lyricsPromise]);
-
-            if (style) {
-                store.applyAiSuggestions({
-                    genres: style.genres?.length ? style.genres : undefined,
-                    moods: style.moods?.length ? style.moods : undefined,
-                    tempo: style.tempo || undefined,
-                    musicalKey: style.musical_key || undefined,
-                    instruments: style.instruments?.length ? style.instruments : undefined,
-                    title: style.title_suggestion || undefined,
-                });
-            }
-
-            if (lyricsRes) {
-                store.setLyrics(lyricsRes.lyrics);
-                if (lyricsRes.suggestions) {
-                    store.applyAiSuggestions({
-                        genres: !style && lyricsRes.suggestions.genres?.length ? lyricsRes.suggestions.genres : undefined,
-                        moods: !style && lyricsRes.suggestions.moods?.length ? lyricsRes.suggestions.moods : undefined,
-                        tempo: !style && lyricsRes.suggestions.tempo ? lyricsRes.suggestions.tempo : undefined,
-                        musicalKey: !style && lyricsRes.suggestions.musical_key ? lyricsRes.suggestions.musical_key : undefined,
-                        instruments: !style && lyricsRes.suggestions.instruments?.length ? lyricsRes.suggestions.instruments : undefined,
-                    });
-                }
-            }
-
-            if (lyricsRes?.lyrics && !style?.title_suggestion) {
-                try {
-                    const titleRes = await api.generateTitle({
-                        lyrics: lyricsRes.lyrics,
-                        genre: style?.genres?.[0],
-                        mood: style?.moods?.[0],
-                    });
-                    store.setTitle(titleRes.title);
-                } catch {
-                    // Title generation is optional
-                }
-            }
-
-            store.setSuccessMessage(t("create.aiFillSuccess"));
-        } catch {
-            store.setErrorMessage(t("create.smartFillFailed"));
-        } finally {
-            setSmartFilling(false);
-        }
-    }, [store, t]);
-
     /* -- Generate music -- */
     const handleGenerate = useCallback(async () => {
         if (!store.prompt.trim()) {
             store.setErrorMessage(t("create.pleaseEnterDescription"));
             return;
         }
-        store.setGenerationStatus("pending");
-        store.setProgress(0);
-        store.setErrorMessage(null);
+
+        // Simple mode: auto-fill via AI before generating
+        if (store.mode === "smart" && !store.lyrics && !store.title && store.selectedGenres.length === 0) {
+            smartFillingRef.current = true;
+            store.setGenerationStatus("pending");
+            store.setProgress(0);
+            store.setErrorMessage(null);
+            try {
+                const [style, lyricsRes] = await Promise.all([
+                    api.suggestStyle({prompt: store.prompt.trim()}).catch(() => null),
+                    store.instrumental ? Promise.resolve(null) : api.generateLyrics({
+                        prompt: store.prompt.trim(),
+                        language: store.language,
+                    }).catch(() => null),
+                ]);
+
+                if (style) {
+                    store.applyAiSuggestions({
+                        genres: style.genres?.length ? style.genres : undefined,
+                        moods: style.moods?.length ? style.moods : undefined,
+                        tempo: style.tempo || undefined,
+                        musicalKey: style.musical_key || undefined,
+                        instruments: style.instruments?.length ? style.instruments : undefined,
+                        title: style.title_suggestion || undefined,
+                    });
+                }
+
+                if (lyricsRes) {
+                    store.setLyrics(lyricsRes.lyrics);
+                }
+
+                if (lyricsRes?.lyrics && !style?.title_suggestion) {
+                    try {
+                        const titleRes = await api.generateTitle({
+                            lyrics: lyricsRes.lyrics,
+                            genre: style?.genres?.[0],
+                            mood: style?.moods?.[0],
+                        });
+                        store.setTitle(titleRes.title);
+                    } catch {
+                        // Title generation is optional
+                    }
+                }
+            } catch {
+                // Smart fill failed, proceed with prompt only
+            } finally {
+                smartFillingRef.current = false;
+            }
+        } else {
+            store.setGenerationStatus("pending");
+            store.setProgress(0);
+            store.setErrorMessage(null);
+        }
+
         try {
+            const currentStore = useCreateStore.getState();
             const res = await api.generateMusic({
-                prompt: store.prompt.trim(),
-                lyrics: store.lyrics || undefined,
-                genre: store.selectedGenres.join(", ") || undefined,
-                mood: store.selectedMoods.join(", ") || undefined,
-                duration: store.duration,
-                title: store.title || undefined,
-                tempo: store.tempo,
-                musical_key: store.musicalKey,
-                instruments: store.instruments.length > 0 ? store.instruments : undefined,
-                language: store.language,
-                instrumental: store.instrumental,
-                pipeline: store.pipeline || undefined,
+                prompt: currentStore.prompt.trim(),
+                lyrics: currentStore.lyrics || undefined,
+                genre: currentStore.selectedGenres.join(", ") || undefined,
+                mood: currentStore.selectedMoods.join(", ") || undefined,
+                duration: currentStore.duration,
+                title: currentStore.title || undefined,
+                tempo: currentStore.tempo,
+                musical_key: currentStore.musicalKey,
+                instruments: currentStore.instruments.length > 0 ? currentStore.instruments : undefined,
+                language: currentStore.language,
+                instrumental: currentStore.instrumental,
             });
             store.setCurrentTaskId(res.task_id);
             store.setGenerationStatus("processing");
@@ -442,7 +422,7 @@ export default function CreatePage() {
                         {t("create.title")}
                     </h1>
                     <p className="text-[13px] text-text-tertiary mt-1">
-                        {t("create.subtitle")}
+                        {store.mode === "smart" ? t("create.simpleSubtitle") : t("create.subtitle")}
                     </p>
                 </motion.div>
 
@@ -533,8 +513,8 @@ export default function CreatePage() {
                         <textarea
                             value={store.prompt}
                             onChange={(e) => store.setPrompt(e.target.value)}
-                            placeholder={t("create.placeholder")}
-                            rows={3}
+                            placeholder={store.mode === "smart" ? t("create.simplePlaceholder") : t("create.placeholder")}
+                            rows={store.mode === "smart" ? 4 : 3}
                             className="w-full px-4 py-3 rounded-xl border border-border
                          bg-surface-secondary text-sm text-text-primary leading-relaxed
                          placeholder:text-text-tertiary/60 focus:outline-none
@@ -543,219 +523,239 @@ export default function CreatePage() {
                         />
                     </div>
 
-                    {/* Smart Mode: prominent "Auto-Fill" CTA */}
+                    {/* Simple Mode: inline options row */}
                     {store.mode === "smart" && (
-                        <div className="px-5 pb-5">
-                            <button
-                                onClick={handleSmartFill}
-                                disabled={!store.prompt.trim() || smartFilling}
-                                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold
-                           text-white bg-gradient-to-r from-primary-600 via-primary-500 to-accent-500
-                           hover:from-primary-700 hover:via-primary-600 hover:to-accent-600
-                           shadow-md shadow-primary-200/50
-                           disabled:opacity-40 disabled:cursor-not-allowed
-                           transition-all cursor-pointer"
-                            >
-                                {smartFilling ? (
-                                    <Loader2 className="w-4 h-4 animate-spin"/>
-                                ) : (
-                                    <Sparkles className="w-4 h-4"/>
+                        <div className="px-5 pb-5 space-y-3">
+                            <div className="flex items-center gap-3 flex-wrap">
+                                {/* Instrumental toggle */}
+                                <button
+                                    onClick={() => store.setInstrumental(!store.instrumental)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
+                                       transition-all cursor-pointer border
+                                       ${store.instrumental
+                                        ? "bg-primary-50 text-primary-700 border-primary-200"
+                                        : "bg-white text-text-secondary border-border hover:border-primary-200 hover:text-text-primary"}`}
+                                >
+                                    {store.instrumental ? (
+                                        <VolumeX className="w-3 h-3"/>
+                                    ) : (
+                                        <Volume2 className="w-3 h-3"/>
+                                    )}
+                                    {store.instrumental ? t("create.instrumental") : t("create.withVocals")}
+                                </button>
+
+                                {/* Language selector (only when vocals) */}
+                                {!store.instrumental && (
+                                    <div className="flex items-center gap-1.5">
+                                        <Globe className="w-3 h-3 text-text-tertiary"/>
+                                        <CustomSelect
+                                            value={store.language}
+                                            onChange={(v) => store.setLanguage(v)}
+                                            options={LANGUAGE_OPTIONS}
+                                            labelFn={(opt) => t(`tags.languages.${opt}`, opt)}
+                                            compact
+                                        />
+                                    </div>
                                 )}
-                                {smartFilling ? t("create.aiComposing") : t("create.autoFill")}
-                            </button>
+                            </div>
                         </div>
                     )}
                 </motion.div>
 
                 {/* ================================================================
-            SECTION: Title
+            SECTION: Title (Custom mode only)
            ================================================================ */}
-                <motion.div
-                    variants={sectionVariants}
-                    initial="hidden"
-                    animate="visible"
-                    transition={{delay: 0.08, duration: 0.35}}
-                    className="bg-white rounded-2xl border border-border shadow-sm p-5"
-                >
-                    <div className="flex items-center justify-between mb-2.5">
-                        <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
-                            <Type className="w-4 h-4 text-primary-500"/>
-                            {t("create.titleLabel")}
-                        </label>
-                        <AiSuggestBtn
-                            field="title"
-                            loading={!!store.aiSuggesting["title"]}
-                            onClick={() => handleGenerateTitle()}
+                {store.mode === "custom" && (
+                    <motion.div
+                        variants={sectionVariants}
+                        initial="hidden"
+                        animate="visible"
+                        transition={{delay: 0.08, duration: 0.35}}
+                        className="bg-white rounded-2xl border border-border shadow-sm p-5"
+                    >
+                        <div className="flex items-center justify-between mb-2.5">
+                            <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
+                                <Type className="w-4 h-4 text-primary-500"/>
+                                {t("create.titleLabel")}
+                            </label>
+                            <AiSuggestBtn
+                                field="title"
+                                loading={!!store.aiSuggesting["title"]}
+                                onClick={() => handleGenerateTitle()}
+                            />
+                        </div>
+                        <input
+                            type="text"
+                            value={store.title}
+                            onChange={(e) => store.setTitle(e.target.value)}
+                            placeholder={t("create.titlePlaceholder")}
+                            className="w-full px-4 py-2.5 rounded-xl border border-border
+                           bg-surface-secondary text-sm text-text-primary
+                           placeholder:text-text-tertiary/60 focus:outline-none
+                           focus:ring-2 focus:ring-primary-200
+                           focus:border-primary-300 transition-all"
                         />
-                    </div>
-                    <input
-                        type="text"
-                        value={store.title}
-                        onChange={(e) => store.setTitle(e.target.value)}
-                        placeholder={t("create.titlePlaceholder")}
-                        className="w-full px-4 py-2.5 rounded-xl border border-border
-                       bg-surface-secondary text-sm text-text-primary
-                       placeholder:text-text-tertiary/60 focus:outline-none
-                       focus:ring-2 focus:ring-primary-200
-                       focus:border-primary-300 transition-all"
-                    />
-                </motion.div>
+                    </motion.div>
+                )}
 
                 {/* ================================================================
-            SECTION: Lyrics (with structure tag toolbar)
+            SECTION: Lyrics (Custom mode only)
            ================================================================ */}
-                <motion.div
-                    variants={sectionVariants}
-                    initial="hidden"
-                    animate="visible"
-                    transition={{delay: 0.11, duration: 0.35}}
-                    className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden"
-                >
-                    {/* Header row */}
-                    <div className="flex items-center justify-between px-5 pt-5 pb-0">
-                        <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
-                            <Mic className="w-4 h-4 text-primary-500"/>
-                            {t("create.lyrics")}
-                        </label>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => store.setInstrumental(!store.instrumental)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
-                           transition-all cursor-pointer border
-                           ${store.instrumental
-                                    ? "bg-primary-50 text-primary-700 border-primary-200"
-                                    : "bg-white text-text-secondary border-border hover:border-primary-200 hover:text-text-primary"}`}
-                            >
-                                {store.instrumental ? (
-                                    <VolumeX className="w-3 h-3"/>
-                                ) : (
-                                    <Volume2 className="w-3 h-3"/>
-                                )}
-                                {store.instrumental ? t("create.instrumental") : t("create.withVocals")}
-                            </button>
-                            <AiSuggestBtn
-                                field="lyrics"
-                                loading={lyricsLoading}
-                                onClick={() => handleGenerateLyrics()}
-                            />
-                        </div>
-                    </div>
-
-                    {store.instrumental ? (
-                        <div className="m-5 flex items-center justify-center py-8 text-sm text-text-tertiary
-                            bg-surface-secondary rounded-xl border border-dashed border-border">
-                            <VolumeX className="w-4 h-4 mr-2 opacity-50"/>
-                            {t("create.instrumentalHint")}
-                        </div>
-                    ) : (
-                        <div className="p-5 pt-3 space-y-3">
-                            {/* Structure tag toolbar */}
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider mr-1">
-                  {t("create.insert")}
-                </span>
-                                {STRUCTURE_TAGS.map((tag) => (
-                                    <button
-                                        key={tag}
-                                        onClick={() => insertStructureTag(tag)}
-                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium
-                               text-primary-600 bg-primary-50 hover:bg-primary-100
-                               border border-primary-100 hover:border-primary-200
-                               transition-all cursor-pointer"
-                                    >
-                                        <Plus className="w-2.5 h-2.5"/>
-                                        {t(`structureTags.${tag}`, tag)}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Lyrics textarea */}
-                            <textarea
-                                ref={lyricsRef}
-                                value={store.lyrics}
-                                onChange={(e) => store.setLyrics(e.target.value)}
-                                placeholder={t("create.lyricsPlaceholder")}
-                                rows={10}
-                                className="w-full px-4 py-3 rounded-xl border border-border
-                           bg-surface-secondary text-[13px] text-text-primary
-                           leading-relaxed font-mono
-                           placeholder:text-text-tertiary/50 focus:outline-none
-                           focus:ring-2 focus:ring-primary-200
-                           focus:border-primary-300 resize-none transition-all"
-                            />
-
-                            {/* Language selector */}
+                {store.mode === "custom" && (
+                    <motion.div
+                        variants={sectionVariants}
+                        initial="hidden"
+                        animate="visible"
+                        transition={{delay: 0.11, duration: 0.35}}
+                        className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden"
+                    >
+                        {/* Header row */}
+                        <div className="flex items-center justify-between px-5 pt-5 pb-0">
+                            <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
+                                <Mic className="w-4 h-4 text-primary-500"/>
+                                {t("create.lyrics")}
+                            </label>
                             <div className="flex items-center gap-2">
-                                <Globe className="w-3.5 h-3.5 text-text-tertiary"/>
-                                <CustomSelect
-                                    value={store.language}
-                                    onChange={(v) => store.setLanguage(v)}
-                                    options={LANGUAGE_OPTIONS}
-                                    labelFn={(opt) => t(`tags.languages.${opt}`, opt)}
-                                    compact
+                                <button
+                                    onClick={() => store.setInstrumental(!store.instrumental)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
+                               transition-all cursor-pointer border
+                               ${store.instrumental
+                                        ? "bg-primary-50 text-primary-700 border-primary-200"
+                                        : "bg-white text-text-secondary border-border hover:border-primary-200 hover:text-text-primary"}`}
+                                >
+                                    {store.instrumental ? (
+                                        <VolumeX className="w-3 h-3"/>
+                                    ) : (
+                                        <Volume2 className="w-3 h-3"/>
+                                    )}
+                                    {store.instrumental ? t("create.instrumental") : t("create.withVocals")}
+                                </button>
+                                <AiSuggestBtn
+                                    field="lyrics"
+                                    loading={lyricsLoading}
+                                    onClick={() => handleGenerateLyrics()}
                                 />
                             </div>
                         </div>
-                    )}
-                </motion.div>
+
+                        {store.instrumental ? (
+                            <div className="m-5 flex items-center justify-center py-8 text-sm text-text-tertiary
+                                bg-surface-secondary rounded-xl border border-dashed border-border">
+                                <VolumeX className="w-4 h-4 mr-2 opacity-50"/>
+                                {t("create.instrumentalHint")}
+                            </div>
+                        ) : (
+                            <div className="p-5 pt-3 space-y-3">
+                                {/* Structure tag toolbar */}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider mr-1">
+                      {t("create.insert")}
+                    </span>
+                                    {STRUCTURE_TAGS.map((tag) => (
+                                        <button
+                                            key={tag}
+                                            onClick={() => insertStructureTag(tag)}
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium
+                                   text-primary-600 bg-primary-50 hover:bg-primary-100
+                                   border border-primary-100 hover:border-primary-200
+                                   transition-all cursor-pointer"
+                                        >
+                                            <Plus className="w-2.5 h-2.5"/>
+                                            {t(`structureTags.${tag}`, tag)}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Lyrics textarea */}
+                                <textarea
+                                    ref={lyricsRef}
+                                    value={store.lyrics}
+                                    onChange={(e) => store.setLyrics(e.target.value)}
+                                    placeholder={t("create.lyricsPlaceholder")}
+                                    rows={10}
+                                    className="w-full px-4 py-3 rounded-xl border border-border
+                               bg-surface-secondary text-[13px] text-text-primary
+                               leading-relaxed font-mono
+                               placeholder:text-text-tertiary/50 focus:outline-none
+                               focus:ring-2 focus:ring-primary-200
+                               focus:border-primary-300 resize-none transition-all"
+                                />
+
+                                {/* Language selector */}
+                                <div className="flex items-center gap-2">
+                                    <Globe className="w-3.5 h-3.5 text-text-tertiary"/>
+                                    <CustomSelect
+                                        value={store.language}
+                                        onChange={(v) => store.setLanguage(v)}
+                                        options={LANGUAGE_OPTIONS}
+                                        labelFn={(opt) => t(`tags.languages.${opt}`, opt)}
+                                        compact
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
 
                 {/* ================================================================
-            SECTION: Style -- Genre & Mood combined
+            SECTION: Style -- Genre & Mood (Custom mode only)
            ================================================================ */}
-                <motion.div
-                    variants={sectionVariants}
-                    initial="hidden"
-                    animate="visible"
-                    transition={{delay: 0.14, duration: 0.35}}
-                    className="bg-white rounded-2xl border border-border shadow-sm p-5 space-y-5"
-                >
-                    {/* Genre */}
-                    <div>
-                        <div className="flex items-center justify-between mb-3">
-                            <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
-                                <Music className="w-4 h-4 text-primary-500"/>
-                                {t("create.genre")}
-                            </label>
-                            <AiSuggestBtn field="genre" loading={!!store.aiSuggesting["genre"]}
-                                          onClick={() => handleSuggestStyle("genre")}/>
+                {store.mode === "custom" && (
+                    <motion.div
+                        variants={sectionVariants}
+                        initial="hidden"
+                        animate="visible"
+                        transition={{delay: 0.14, duration: 0.35}}
+                        className="bg-white rounded-2xl border border-border shadow-sm p-5 space-y-5"
+                    >
+                        {/* Genre */}
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
+                                    <Music className="w-4 h-4 text-primary-500"/>
+                                    {t("create.genre")}
+                                </label>
+                                <AiSuggestBtn field="genre" loading={!!store.aiSuggesting["genre"]}
+                                              onClick={() => handleSuggestStyle("genre")}/>
+                            </div>
+                            <TagSelector
+                                presets={GENRE_OPTIONS}
+                                selected={store.selectedGenres}
+                                onToggle={store.toggleGenre}
+                                colorFn={(tag, sel) => sel ? `${genreColors[tag] || "bg-gray-50 text-gray-700 border-gray-200"} shadow-sm` : ""}
+                                labelFn={(tag) => t(`tags.genres.${tag}`, tag)}
+                                placeholder={t("create.addGenre", "Add genre...")}
+                            />
                         </div>
-                        <TagSelector
-                            presets={GENRE_OPTIONS}
-                            selected={store.selectedGenres}
-                            onToggle={store.toggleGenre}
-                            colorFn={(tag, sel) => sel ? `${genreColors[tag] || "bg-gray-50 text-gray-700 border-gray-200"} shadow-sm` : ""}
-                            labelFn={(tag) => t(`tags.genres.${tag}`, tag)}
-                            placeholder={t("create.addGenre", "Add genre...")}
-                        />
-                    </div>
 
-                    {/* Divider */}
-                    <div className="border-t border-border-light"/>
+                        {/* Divider */}
+                        <div className="border-t border-border-light"/>
 
-                    {/* Mood */}
-                    <div>
-                        <div className="flex items-center justify-between mb-3">
-                            <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
-                                <Sparkles className="w-4 h-4 text-accent-500"/>
-                                {t("create.mood")}
-                            </label>
-                            <AiSuggestBtn field="mood" loading={!!store.aiSuggesting["mood"]}
-                                          onClick={() => handleSuggestStyle("mood")}/>
+                        {/* Mood */}
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
+                                    <Sparkles className="w-4 h-4 text-accent-500"/>
+                                    {t("create.mood")}
+                                </label>
+                                <AiSuggestBtn field="mood" loading={!!store.aiSuggesting["mood"]}
+                                              onClick={() => handleSuggestStyle("mood")}/>
+                            </div>
+                            <TagSelector
+                                presets={MOOD_OPTIONS}
+                                selected={store.selectedMoods}
+                                onToggle={store.toggleMood}
+                                colorFn={(tag, sel) => sel ? `bg-gradient-to-r ${moodGradients[tag] || "from-gray-100 to-gray-50 text-gray-700 border-gray-200"} shadow-sm` : ""}
+                                labelFn={(tag) => t(`tags.moods.${tag}`, tag)}
+                                placeholder={t("create.addMood", "Add mood...")}
+                            />
                         </div>
-                        <TagSelector
-                            presets={MOOD_OPTIONS}
-                            selected={store.selectedMoods}
-                            onToggle={store.toggleMood}
-                            colorFn={(tag, sel) => sel ? `bg-gradient-to-r ${moodGradients[tag] || "from-gray-100 to-gray-50 text-gray-700 border-gray-200"} shadow-sm` : ""}
-                            labelFn={(tag) => t(`tags.moods.${tag}`, tag)}
-                            placeholder={t("create.addMood", "Add mood...")}
-                        />
-                    </div>
-                </motion.div>
+                    </motion.div>
+                )}
 
                 {/* ================================================================
-            SECTION: Sound -- Duration, Tempo, Key, Instruments combined
-            Only shown in "custom" mode
+            SECTION: Sound -- Duration, Tempo, Key, Instruments (Custom mode only)
            ================================================================ */}
                 {store.mode === "custom" && (
                     <motion.div
@@ -777,7 +777,7 @@ export default function CreatePage() {
                                 <div className="bg-surface-secondary rounded-xl p-3 border border-border-light">
                                     <div className="text-center mb-2">
                   <span className="text-lg font-bold text-text-primary tabular-nums">
-                    {formatDuration(store.duration)}
+                    {formatSeconds(store.duration)}
                   </span>
                                     </div>
                                     <input
@@ -878,53 +878,13 @@ export default function CreatePage() {
                 )}
 
                 {/* ================================================================
-            SECTION: Pipeline Selector (custom mode, multiple pipelines)
-           ================================================================ */}
-                {store.mode === "custom" && pipelines.length > 1 && (
-                    <motion.div
-                        variants={sectionVariants}
-                        initial="hidden"
-                        animate="visible"
-                        transition={{delay: 0.19, duration: 0.35}}
-                        className="bg-white rounded-2xl border border-border shadow-sm p-5"
-                    >
-                        <div className="flex items-center justify-between mb-2.5">
-                            <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
-                                <Layers className="w-4 h-4 text-primary-500"/>
-                                {t("create.pipeline")}
-                            </label>
-                            <span className="text-[11px] text-text-tertiary">
-                                {t("create.pipelineHint")}
-                            </span>
-                        </div>
-                        <CustomSelect
-                            value={store.pipeline}
-                            onChange={(v) => store.setPipeline(v)}
-                            options={["", ...pipelines.map(p => p.name)]}
-                            labelFn={(opt) => {
-                                if (opt === "") return t("create.pipelineAuto");
-                                const PIPELINE_I18N: Record<string, string> = {
-                                    direct: "create.pipelineDirect",
-                                    vocal_instrumental: "create.pipelineVocalInstrumental",
-                                };
-                                const i18nKey = PIPELINE_I18N[opt];
-                                if (i18nKey) return t(i18nKey);
-                                const info = pipelines.find(p => p.name === opt);
-                                return info ? info.description || info.name : opt;
-                            }}
-                            placeholder={t("create.pipelineAuto")}
-                        />
-                    </motion.div>
-                )}
-
-                {/* ================================================================
             SECTION: Generate Button
            ================================================================ */}
                 <motion.div
                     variants={sectionVariants}
                     initial="hidden"
                     animate="visible"
-                    transition={{delay: 0.2, duration: 0.35}}
+                    transition={{delay: store.mode === "smart" ? 0.1 : 0.2, duration: 0.35}}
                     className="pt-1 pb-2"
                 >
                     <button
@@ -944,6 +904,11 @@ export default function CreatePage() {
                         )}
                         {isGenerating ? t("create.generating") : t("create.createSong")}
                     </button>
+                    {store.mode === "smart" && (
+                        <p className="text-center text-[11px] text-text-tertiary mt-2">
+                            {t("create.simpleHint")}
+                        </p>
+                    )}
                 </motion.div>
 
                 {/* ================================================================

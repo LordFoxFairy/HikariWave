@@ -26,13 +26,9 @@ from __future__ import annotations
 
 import asyncio
 import gc
-import io
 import logging
 from pathlib import Path
 from typing import Any
-
-import numpy as np
-import soundfile as sf
 
 from backend.app.providers.music.base import (
     BaseMusicProvider,
@@ -40,6 +36,7 @@ from backend.app.providers.music.base import (
     MusicGenerationResponse,
     MusicProviderConfig,
 )
+from backend.app.providers.music.utils import select_device, to_wav
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +44,6 @@ logger = logging.getLogger(__name__)
 _LATENT_RATE = 25
 _LATENT_CHANNELS = 64
 _SAMPLE_RATE = 48000
-
-
-def _select_device() -> str:
-    import torch
-
-    if torch.cuda.is_available():
-        return "cuda"
-    if torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
 
 
 # -- Component loaders --------------------------------------------------------
@@ -182,7 +169,7 @@ class AceStepMusicProvider(BaseMusicProvider):
             )
 
         self._device = (
-            _select_device()
+            select_device()
             if (self.config.device or "auto") == "auto"
             else self.config.device
         )
@@ -218,9 +205,6 @@ class AceStepMusicProvider(BaseMusicProvider):
             "_model", "_vae", "_text_encoder",
             "_text_tokenizer", "_silence_latent",
         ):
-            obj = getattr(self, attr, None)
-            if obj is not None:
-                del obj
             setattr(self, attr, None)
         gc.collect()
         try:
@@ -341,7 +325,7 @@ class AceStepMusicProvider(BaseMusicProvider):
             with torch.no_grad():
                 audio = vae.decode(target_latents.to(vae.dtype)).sample
 
-            return _to_wav(audio[0], _SAMPLE_RATE)
+            return to_wav(audio[0], _SAMPLE_RATE)
 
         try:
             return await asyncio.to_thread(_run)
@@ -378,25 +362,3 @@ class AceStepMusicProvider(BaseMusicProvider):
         return hidden, mask
 
 
-# -- Helpers ------------------------------------------------------------------
-
-
-def _to_wav(audio: Any, sr: int) -> tuple[bytes, int]:
-    """Convert audio tensor to WAV bytes."""
-    if hasattr(audio, "cpu"):
-        audio = audio.cpu().float()
-        peak = audio.abs().max()
-        if peak > 0:
-            audio = audio / peak
-        audio_np = audio.numpy()
-    else:
-        audio_np = np.asarray(audio, dtype=np.float32)
-
-    if audio_np.ndim > 2:
-        audio_np = audio_np.squeeze(axis=0)
-    if audio_np.ndim == 2 and audio_np.shape[0] < audio_np.shape[1]:
-        audio_np = audio_np.T
-
-    buf = io.BytesIO()
-    sf.write(buf, audio_np, sr, format="WAV")
-    return buf.getvalue(), sr

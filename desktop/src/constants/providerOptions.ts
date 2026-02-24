@@ -18,10 +18,10 @@ export const LLM_ROUTER_TASKS = [
     {key: "cover_art", labelKey: "providers.routerCoverArt"},
 ] as const;
 
-export const PROVIDER_TYPE_LABELS: Record<LLMProviderType, string> = {
-    openrouter: "OpenRouter",
-    ollama: "Ollama (Local)",
-    openai_compat: "OpenAI-Compatible",
+export const PROVIDER_TYPE_LABEL_KEYS: Record<LLMProviderType, string> = {
+    openrouter: "providers.openrouter",
+    ollama: "providers.ollama",
+    openai_compat: "providers.openaiCompat",
 };
 
 export const PROVIDER_TYPE_COLORS: Record<LLMProviderType, string> = {

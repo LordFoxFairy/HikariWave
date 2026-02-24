@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from pathlib import Path
@@ -5,6 +6,8 @@ from typing import Any
 
 import yaml
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 ENV_PATH = PROJECT_ROOT / ".env"
@@ -18,7 +21,11 @@ def _resolve_env_vars(value: str) -> str:
     pattern = re.compile(r"\$\{(\w+)\}")
 
     def replacer(match: re.Match) -> str:
-        return os.environ.get(match.group(1), "")
+        var_name = match.group(1)
+        value = os.environ.get(var_name, "")
+        if not value:
+            logger.warning("Environment variable %s is not set", var_name)
+        return value
 
     return pattern.sub(replacer, value)
 

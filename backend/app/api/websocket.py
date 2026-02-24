@@ -3,7 +3,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.app.services.generation import generation_service
+from backend.app.services.music_generation import generation_service
 
 logger = logging.getLogger(__name__)
 

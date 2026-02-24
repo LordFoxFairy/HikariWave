@@ -10,7 +10,6 @@ from backend.app.providers.music.base import BaseMusicProvider
 from backend.app.providers.music.base import MusicGenerationRequest as MusicReq
 from backend.app.repositories.generation import generation_repository
 from backend.app.services.llm_service import llm_service
-from backend.app.services.music import music_inference_service
 from backend.app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
@@ -66,7 +65,6 @@ class GenerationService:
         generate_cover: bool = True,
         parent_id: int | None = None,
         parent_type: str | None = None,
-        pipeline: str | None = None,
     ) -> Generation:
         task_id = uuid.uuid4().hex
         llm_provider_name: str | None = None
@@ -133,7 +131,6 @@ class GenerationService:
         task = asyncio.create_task(
             self._run_generation_background(
                 gen.task_id, music_req, music_provider, generate_cover,
-                pipeline=pipeline,
             )
         )
         _running_tasks[gen.task_id] = task
@@ -227,7 +224,6 @@ class GenerationService:
         music_req: MusicReq,
         music_provider: "BaseMusicProvider",
         generate_cover: bool = True,
-        pipeline: str | None = None,
     ) -> None:
         """Run music generation in background and update DB record via repository."""
         async with _generation_semaphore:
@@ -235,7 +231,6 @@ class GenerationService:
                 await asyncio.wait_for(
                     self._run_generation(
                         task_id, music_req, music_provider, generate_cover,
-                        pipeline=pipeline,
                     ),
                     timeout=_GENERATION_TIMEOUT,
                 )
@@ -270,7 +265,6 @@ class GenerationService:
         music_req: MusicReq,
         music_provider: "BaseMusicProvider",
         generate_cover: bool = True,
-        pipeline: str | None = None,
     ) -> None:
         """Core generation logic extracted for timeout wrapping."""
         try:
@@ -295,26 +289,7 @@ class GenerationService:
                 progress_message="Generating audio...",
             )
 
-            if pipeline:
-                # All named pipelines (including "direct") go through pipeline system
-                pipelines_config = provider_manager._config.get("music", {}).get(
-                    "pipelines", {}
-                )
-                pipeline_cfg = pipelines_config.get(pipeline, {})
-                providers_dict = music_inference_service.resolve_pipeline_providers(
-                    pipeline, pipeline_cfg, provider_manager
-                )
-                for p in providers_dict.values():
-                    if not p.is_loaded:
-                        await p.load_model()
-                response = await music_inference_service.run_pipeline(
-                    pipeline, providers_dict, music_req
-                )
-            else:
-                # No pipeline specified -- use single-model infer with router default
-                response = await music_inference_service.infer(
-                    music_provider, music_req
-                )
+            response = await music_provider.generate(music_req)
 
             # Persist audio bytes to disk via storage service.
             if response.audio_data:

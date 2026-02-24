@@ -97,15 +97,31 @@ async def _chat(
     This is the single point where the service layer talks to LLM providers.
     The provider only supplies the model client — all prompt construction and
     response parsing happens in the service methods.
+
+    Per-request parameters (``temperature``, ``max_tokens``) are passed to
+    ``ainvoke`` via the model's ``bind`` method so they apply to the current
+    call without requiring re-initialisation.
     """
     provider, model_name = provider_manager.get_llm_provider(task)
 
     # Re-initialise if model name changed or not yet loaded
-    if not provider.is_loaded or provider._current_model_name != model_name:
-        await provider.init_model(model_name, **kwargs)
+    if not provider.is_loaded or provider.current_model_name != model_name:
+        await provider.init_model(model_name)
 
     lc_messages = _to_langchain_messages(messages)
-    response = await provider.model.ainvoke(lc_messages)
+
+    # Apply per-request overrides (temperature, max_tokens, etc.)
+    invoke_kwargs = {}
+    if "temperature" in kwargs:
+        invoke_kwargs["temperature"] = kwargs["temperature"]
+    if "max_tokens" in kwargs:
+        invoke_kwargs["max_tokens"] = kwargs["max_tokens"]
+
+    model = provider.model
+    if invoke_kwargs:
+        model = model.bind(**invoke_kwargs)
+
+    response = await model.ainvoke(lc_messages)
     return response.content
 
 
