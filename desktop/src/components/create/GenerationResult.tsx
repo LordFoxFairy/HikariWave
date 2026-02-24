@@ -90,7 +90,7 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                         </div>
                                     )}
                                     <h3 className="text-lg font-bold text-text-primary mb-1">
-                                        Song Created!
+                                        {completedGen?.title || "Song Created!"}
                                     </h3>
 
                                     {/* Lineage info */}
@@ -130,14 +130,14 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                     )}
                                 </div>
 
-                                {store.lyrics && (
+                                {(completedGen?.lyrics || store.lyrics) && (
                                     <div className="text-left">
                     <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
                       Lyrics
                     </span>
                                         <pre className="text-[13px] text-text-primary mt-2 font-mono whitespace-pre-wrap leading-relaxed
                                     bg-surface-secondary rounded-xl p-4 max-h-52 overflow-y-auto border border-border-light">
-                      {store.lyrics}
+                      {completedGen?.lyrics || store.lyrics}
                     </pre>
                                     </div>
                                 )}

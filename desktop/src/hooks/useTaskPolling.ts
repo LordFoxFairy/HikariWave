@@ -28,6 +28,8 @@ export function useTaskPolling({resultRef}: UseTaskPollingOptions) {
                 store.setProgress(gen.progress ?? 0);
                 setProgressMessage(gen.progress_message || "");
                 if (gen.status === "completed") {
+                    if (gen.lyrics) store.setLyrics(gen.lyrics);
+                    if (gen.title) store.setTitle(gen.title);
                     store.setGenerationStatus("completed");
                     store.setSuccessMessage(t("create.musicGeneratedSuccess"));
                     setProgressMessage("");
