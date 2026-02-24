@@ -1,4 +1,4 @@
-import {Layers, Library, Music, PlusCircle, Settings, Sparkles} from "lucide-react";
+import {ChevronLeft, ChevronRight, Layers, Library, Music, PlusCircle, Settings, Sparkles} from "lucide-react";
 import {AnimatePresence, motion} from "framer-motion";
 import {useTranslation} from "react-i18next";
 import {useAppStore} from "../stores/appStore";
@@ -12,7 +12,7 @@ const navItems: { id: PageId; labelKey: string; icon: typeof Music }[] = [
 ];
 
 export default function Sidebar() {
-    const {currentPage, setCurrentPage, sidebarCollapsed} =
+    const {currentPage, setCurrentPage, sidebarCollapsed, toggleSidebar} =
         useAppStore();
     const {t} = useTranslation();
 
@@ -137,18 +137,33 @@ export default function Sidebar() {
 
             {/* Footer */}
             <div className="px-3 py-3 border-t border-border flex-shrink-0">
-                <AnimatePresence>
-                    {!sidebarCollapsed && (
-                        <motion.p
-                            initial={{opacity: 0}}
-                            animate={{opacity: 1}}
-                            exit={{opacity: 0}}
-                            className="text-[10px] text-text-tertiary text-center"
-                        >
-                            v0.1.0
-                        </motion.p>
-                    )}
-                </AnimatePresence>
+                <div className="flex items-center justify-between">
+                    <AnimatePresence>
+                        {!sidebarCollapsed && (
+                            <motion.p
+                                initial={{opacity: 0}}
+                                animate={{opacity: 1}}
+                                exit={{opacity: 0}}
+                                className="text-[10px] text-text-tertiary"
+                            >
+                                v0.1.0
+                            </motion.p>
+                        )}
+                    </AnimatePresence>
+                    <button
+                        onClick={toggleSidebar}
+                        className="p-1.5 rounded-lg hover:bg-surface-tertiary
+                            text-text-tertiary hover:text-text-secondary
+                            transition-colors cursor-pointer ml-auto"
+                        title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                    >
+                        {sidebarCollapsed ? (
+                            <ChevronRight className="w-4 h-4"/>
+                        ) : (
+                            <ChevronLeft className="w-4 h-4"/>
+                        )}
+                    </button>
+                </div>
             </div>
         </aside>
     );

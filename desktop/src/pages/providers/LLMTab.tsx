@@ -5,6 +5,7 @@ import {useTranslation} from "react-i18next";
 import {api} from "../../services/api";
 import {SectionHeader} from "../../components/providers/SectionHeader";
 import {ProviderFormModal} from "../../components/providers/ProviderFormModal";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import {
     DEFAULT_URLS,
     EMPTY_PROVIDER,
@@ -25,6 +26,15 @@ export function LLMTab() {
     const [testResult, setTestResult] = useState<LLMTestResponse | null>(null);
     const [testingProvider, setTestingProvider] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
+    const [errorToast, setErrorToast] = useState<string | null>(null);
+
+    // Auto-dismiss error toast
+    useEffect(() => {
+        if (!errorToast) return;
+        const timer = setTimeout(() => setErrorToast(null), 4000);
+        return () => clearTimeout(timer);
+    }, [errorToast]);
 
     const loadData = useCallback(async () => {
         try {
@@ -122,7 +132,7 @@ export function LLMTab() {
             setLlmConfig(updated);
             closeForm();
         } catch {
-            /* noop */
+            setErrorToast(t("providers.saveFailed"));
         } finally {
             setSaving(false);
         }
@@ -143,7 +153,7 @@ export function LLMTab() {
             const updated = await api.updateLLMConfig({providers: newProviders, router});
             setLlmConfig(updated);
         } catch {
-            /* noop */
+            setErrorToast(t("providers.deleteFailed"));
         } finally {
             setSaving(false);
         }
@@ -160,7 +170,7 @@ export function LLMTab() {
             });
             setLlmConfig(updated);
         } catch {
-            /* noop */
+            setErrorToast(t("providers.routerSaveFailed"));
         } finally {
             setSaving(false);
         }
@@ -196,7 +206,7 @@ export function LLMTab() {
                                 provider={p}
                                 isDefault={llmConfig.router.default?.startsWith(`${p.name}:`) ?? false}
                                 onEdit={() => openEditForm(idx)}
-                                onDelete={() => handleDeleteProvider(idx)}
+                                onDelete={() => setDeleteConfirmIndex(idx)}
                             />
                         ))}
                     </div>
@@ -284,6 +294,29 @@ export function LLMTab() {
                     </div>
                 </>
             )}
+
+            <ConfirmDialog
+                open={deleteConfirmIndex !== null}
+                title={t("providers.deleteProvider")}
+                message={t("providers.deleteProviderMessage")}
+                onConfirm={() => {
+                    if (deleteConfirmIndex !== null) {
+                        handleDeleteProvider(deleteConfirmIndex);
+                    }
+                    setDeleteConfirmIndex(null);
+                }}
+                onCancel={() => setDeleteConfirmIndex(null)}
+            />
+
+            {/* Error toast */}
+            <AnimatePresence>
+                {errorToast && (
+                    <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl bg-red-50
+                        border border-red-200 text-sm text-red-700 shadow-lg">
+                        {errorToast}
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

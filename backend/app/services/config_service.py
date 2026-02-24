@@ -140,7 +140,7 @@ class ProviderConfigService:
     # -- Music --
 
     async def list_music_providers(self) -> list[dict]:
-        return provider_manager.list_music_providers()
+        return await provider_manager.list_music_providers()
 
     async def get_music_config(self) -> dict:
         return provider_manager.get_music_config()

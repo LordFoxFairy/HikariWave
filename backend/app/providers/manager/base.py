@@ -50,8 +50,8 @@ class ProviderManager:
     def get_music_provider(self):
         return self._music.get_provider()
 
-    def list_music_providers(self):
-        return self._music.list_providers()
+    async def list_music_providers(self):
+        return await self._music.list_providers()
 
     def get_music_config(self):
         return self._music.get_config(self._config)

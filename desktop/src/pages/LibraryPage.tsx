@@ -5,6 +5,7 @@ import {useTranslation} from "react-i18next";
 import {useLibraryStore} from "../stores/libraryStore";
 import {usePlayerStore} from "../stores/playerStore";
 import {useAppStore} from "../stores/appStore";
+import {GENRE_OPTIONS} from "../stores/createStore";
 import {useTrackActions} from "../hooks/useTrackActions";
 import ConfirmDialog from "../components/ConfirmDialog";
 import GridCard from "../components/library/GridCard";
@@ -15,10 +16,7 @@ import ErrorState from "../components/library/ErrorState";
 
 // ---- Constants ----
 
-const GENRE_FILTERS = [
-    "Pop", "Rock", "Jazz", "Electronic", "Hip-Hop", "R&B",
-    "Classical", "Lo-fi", "Ambient", "Metal", "Indie",
-];
+const GENRE_FILTERS = GENRE_OPTIONS;
 
 const SORT_OPTIONS = [
     {labelKey: "library.sort.newest", field: "created_at" as const, dir: "desc" as const},

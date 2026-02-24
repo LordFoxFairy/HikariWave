@@ -11,6 +11,13 @@ class LLMProviderManager:
         self._router: dict[str, str] = {}
 
     def init(self, config: dict) -> None:
+        # Clean up existing providers before re-initialising
+        for name, p in list(self.providers.items()):
+            try:
+                # LLM providers are API-based; just drop references
+                del p
+            except Exception:
+                logger.warning("Failed to clean up LLM provider %s", name, exc_info=True)
         self.providers.clear()
         for entry in config.get("llm", {}).get("providers", []):
             name = entry["name"]

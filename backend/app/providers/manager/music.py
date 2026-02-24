@@ -1,3 +1,5 @@
+import asyncio
+import gc
 import logging
 
 from backend.app.providers.music.base import (
@@ -46,7 +48,25 @@ class MusicProviderManager:
         self._router: dict[str, str] = {}
 
     def init(self, config: dict) -> None:
-        self.providers.clear()
+        # Unload existing providers before clearing to free GPU memory
+        for name, p in self.providers.items():
+            if p.is_loaded:
+                try:
+                    asyncio.get_event_loop().run_until_complete(p.unload_model())
+                except RuntimeError:
+                    # No running event loop — best-effort sync cleanup
+                    p._model = None
+                except Exception:
+                    logger.warning("Failed to unload music provider %s", name, exc_info=True)
+        if self.providers:
+            self.providers.clear()
+            gc.collect()
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except ImportError:
+                pass
         for entry in config.get("music", {}).get("providers", []):
             provider_type = entry.get("type", "huggingface")
             provider_label = entry.get("label", "")
@@ -109,9 +129,10 @@ class MusicProviderManager:
             raise RuntimeError(f"Music provider not found: {route}")
         return provider
 
-    def list_providers(self) -> list[dict]:
+    async def list_providers(self) -> list[dict]:
         result = []
         for key, p in self.providers.items():
+            is_downloaded = await asyncio.to_thread(p.check_downloaded)
             result.append(
                 {
                     "name": key,
@@ -119,7 +140,7 @@ class MusicProviderManager:
                     "label": p.config.label,
                     "models": [p.config.model_name],
                     "is_active": p.is_loaded,
-                    "is_downloaded": p.check_downloaded(),
+                    "is_downloaded": is_downloaded,
                 }
             )
         return result

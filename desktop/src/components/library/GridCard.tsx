@@ -61,6 +61,13 @@ export default function GridCard({
                         className={`w-full h-full object-cover transition-opacity
                        ${coverLoading ? "opacity-40" : ""}`}
                     />
+                ) : gen.status === "completed" ? (
+                    <div className="flex flex-col items-center gap-1.5">
+                        <Loader2 className="w-5 h-5 text-white/40 animate-spin"/>
+                        <span className="text-[10px] text-white/40 font-medium">
+                            {t("library.generatingCover", "Generating cover...")}
+                        </span>
+                    </div>
                 ) : (
                     <Music className="w-8 h-8 text-white/20"/>
                 )}

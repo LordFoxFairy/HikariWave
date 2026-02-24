@@ -5,6 +5,7 @@ import {useProviderStore} from "../../stores/providerStore";
 import {api} from "../../services/api";
 import {SectionHeader} from "../../components/providers/SectionHeader";
 import {MarketplaceSection} from "../../components/providers/MarketplaceSection";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import {MUSIC_ROUTER_TASKS} from "../../constants/providerOptions";
 import type {MusicProviderConfig, MusicProviderStatus} from "../../types";
 
@@ -13,6 +14,7 @@ export function MusicTab() {
     const {
         downloads,
         refreshDownloads,
+        refreshCache,
         deleteCache,
     } = useProviderStore();
 
@@ -22,6 +24,20 @@ export function MusicTab() {
     const [saving, setSaving] = useState(false);
     const [downloading, setDownloading] = useState<Set<string>>(new Set());
     const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
+    const [deleteConfirm, setDeleteConfirm] = useState<{
+        providerIdx: number;
+        modelIdx: number;
+        modelId: string;
+        isDownloaded: boolean;
+    } | null>(null);
+    const [errorToast, setErrorToast] = useState<string | null>(null);
+
+    // Auto-dismiss error toast
+    useEffect(() => {
+        if (!errorToast) return;
+        const timer = setTimeout(() => setErrorToast(null), 4000);
+        return () => clearTimeout(timer);
+    }, [errorToast]);
 
     const loadProviderStatuses = useCallback(async () => {
         try {
@@ -47,7 +63,8 @@ export function MusicTab() {
         loadConfig();
         loadProviderStatuses();
         refreshDownloads();
-    }, [loadConfig, loadProviderStatuses, refreshDownloads]);
+        refreshCache();
+    }, [loadConfig, loadProviderStatuses, refreshDownloads, refreshCache]);
 
     // Poll active downloads — refresh both progress and provider statuses
     useEffect(() => {
@@ -89,7 +106,7 @@ export function MusicTab() {
             });
             setMusicConfig(updated);
         } catch {
-            /* noop */
+            setErrorToast(t("providers.routerSaveFailed"));
         } finally {
             setSaving(false);
         }
@@ -112,7 +129,7 @@ export function MusicTab() {
                 await deleteCache(modelId);
                 await loadProviderStatuses();
             } catch {
-                /* noop */
+                setErrorToast(t("providers.deleteFailed"));
             }
         } else {
             // Not downloaded — remove from config entirely
@@ -128,7 +145,7 @@ export function MusicTab() {
                 });
                 setMusicConfig(updated);
             } catch {
-                /* noop */
+                setErrorToast(t("providers.deleteFailed"));
             } finally {
                 setSaving(false);
             }
@@ -153,7 +170,7 @@ export function MusicTab() {
             await api.downloadModel(modelId);
             refreshDownloads();
         } catch {
-            /* noop */
+            setErrorToast(t("providers.downloadFailed"));
         } finally {
             setDownloading((prev) => {
                 const next = new Set(prev);
@@ -203,7 +220,7 @@ export function MusicTab() {
             });
             setMusicConfig(updated);
         } catch {
-            /* noop */
+            setErrorToast(t("providers.saveFailed"));
         }
     };
 
@@ -303,7 +320,7 @@ export function MusicTab() {
                                                 </button>
                                             )}
                                             <button
-                                                onClick={() => handleDeleteModel(pi, mi, model.model_id, downloaded)}
+                                                onClick={() => setDeleteConfirm({providerIdx: pi, modelIdx: mi, modelId: model.model_id, isDownloaded: downloaded})}
                                                 className="p-1.5 rounded-md hover:bg-red-50
                                                     text-text-tertiary hover:text-red-500
                                                     transition-colors cursor-pointer"
@@ -405,6 +422,27 @@ export function MusicTab() {
                 emptyMessage={t("providers.searchHuggingface")}
                 onModelDownloaded={handleMarketplaceDownload}
             />
+
+            <ConfirmDialog
+                open={deleteConfirm !== null}
+                title={deleteConfirm?.isDownloaded ? t("providers.clearDownloadTitle") : t("providers.deleteModel")}
+                message={deleteConfirm?.isDownloaded ? t("providers.clearDownloadMessage") : t("providers.deleteModelMessage")}
+                onConfirm={() => {
+                    if (deleteConfirm) {
+                        handleDeleteModel(deleteConfirm.providerIdx, deleteConfirm.modelIdx, deleteConfirm.modelId, deleteConfirm.isDownloaded);
+                    }
+                    setDeleteConfirm(null);
+                }}
+                onCancel={() => setDeleteConfirm(null)}
+            />
+
+            {/* Error toast */}
+            {errorToast && (
+                <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl bg-red-50
+                    border border-red-200 text-sm text-red-700 shadow-lg">
+                    {errorToast}
+                </div>
+            )}
         </div>
     );
 }

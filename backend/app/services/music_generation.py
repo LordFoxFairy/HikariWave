@@ -60,6 +60,7 @@ class GenerationService:
         instruments: list[str] | None = None,
         language: str = "en",
         instrumental: bool = False,
+        seed: int | None = None,
         enhance_prompt: bool = True,
         generate_lyrics: bool = False,
         generate_cover: bool = True,
@@ -102,6 +103,7 @@ class GenerationService:
             musical_key=musical_key,
             instruments=instruments,
             instrumental=instrumental,
+            seed=seed,
         )
         music_provider = provider_manager.get_music_provider()
         music_provider_name = music_provider.config.name
@@ -278,9 +280,13 @@ class GenerationService:
             # Build the full text prompt from structured fields before
             # handing off to the provider (prompt construction is business
             # logic, not a provider concern).
-            music_req = music_req.model_copy(
-                update={"prompt": _build_music_prompt(music_req)}
-            )
+            # Skip if the prompt was already enhanced by the LLM — the
+            # enhanced prompt already incorporates genre/mood/etc.
+            gen_record = await self._repo.get_by_task_id(task_id)
+            if not (gen_record and gen_record.enhanced_prompt):
+                music_req = music_req.model_copy(
+                    update={"prompt": _build_music_prompt(music_req)}
+                )
 
             await self._repo.update_status(
                 task_id,

@@ -1,7 +1,7 @@
 import {forwardRef} from "react";
 import {useTranslation} from "react-i18next";
 import {AnimatePresence, motion} from "framer-motion";
-import {GitBranch, Image, Loader2, Music, Pause, Play, Repeat, RotateCcw, Shuffle, X,} from "lucide-react";
+import {GitBranch, Image, Loader2, Pause, Play, Repeat, RotateCcw, Shuffle, X,} from "lucide-react";
 import type {Generation} from "../../types";
 import {useCreateStore} from "../../stores/createStore";
 
@@ -86,9 +86,14 @@ export const GenerationResult = forwardRef<HTMLDivElement, GenerationResultProps
                                             </button>
                                         </div>
                                     ) : (
-                                        <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-5
-                                    border border-green-200">
-                                            <Music className="w-7 h-7 text-green-600"/>
+                                        <div className="w-36 h-36 rounded-2xl overflow-hidden mx-auto mb-5 shadow-lg
+                                            ring-4 ring-primary-100
+                                            bg-gradient-to-br from-primary-400 to-accent-500
+                                            flex flex-col items-center justify-center gap-2">
+                                            <Loader2 className="w-6 h-6 text-white/60 animate-spin"/>
+                                            <span className="text-[11px] text-white/60 font-medium">
+                                                {t("create.generatingCover", "Generating cover...")}
+                                            </span>
                                         </div>
                                     )}
                                     <h3 className="text-lg font-bold text-text-primary mb-1">

@@ -44,6 +44,7 @@ async def generate_music(
         instruments=req.instruments,
         language=req.language,
         instrumental=req.instrumental,
+        seed=req.seed,
         enhance_prompt=req.enhance_prompt,
         generate_lyrics=req.generate_lyrics,
         generate_cover=req.generate_cover,

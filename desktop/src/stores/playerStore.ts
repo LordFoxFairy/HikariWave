@@ -26,14 +26,24 @@ interface PlayerState {
 export const usePlayerStore = create<PlayerState>((set, get) => ({
     currentTrack: null,
     isPlaying: false,
-    volume: 0.8,
+    volume: (() => {
+        const saved = localStorage.getItem("hikari-volume");
+        if (saved !== null) {
+            const v = parseFloat(saved);
+            if (!isNaN(v) && v >= 0 && v <= 1) return v;
+        }
+        return 0.8;
+    })(),
     currentTime: 0,
     duration: 0,
     queue: [],
     queueIndex: -1,
     setCurrentTrack: (track) => set({currentTrack: track}),
     setIsPlaying: (playing) => set({isPlaying: playing}),
-    setVolume: (volume) => set({volume}),
+    setVolume: (volume) => {
+        localStorage.setItem("hikari-volume", String(volume));
+        set({volume});
+    },
     setCurrentTime: (time) => set({currentTime: time}),
     setDuration: (duration) => set({duration}),
     play: (track) => {
