@@ -195,7 +195,7 @@ async def generate_lyrics(
     try:
         lyrics = await llm.generate_lyrics(
             req.prompt, genre=req.genre, mood=req.mood, language=req.language,
-            duration=req.duration,
+            duration=req.duration, title=req.title,
         )
 
         return LyricsResponse(

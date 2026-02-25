@@ -108,6 +108,7 @@ export interface GenerateLyricsRequest {
     mood?: string;
     language?: string;
     duration?: number;
+    title?: string;
 }
 
 export interface GenerateLyricsResponse {

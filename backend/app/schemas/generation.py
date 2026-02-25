@@ -148,6 +148,7 @@ class LyricsGenerationRequest(BaseModel):
     mood: str | None = None
     language: str = "en"
     duration: float = Field(default=240.0, description="Target song duration in seconds")
+    title: str | None = None
 
 
 class PromptEnhancementRequest(BaseModel):

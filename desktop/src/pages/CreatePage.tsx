@@ -42,7 +42,6 @@ import {
 } from "../constants/musicOptions";
 import {MUSIC_TEMPLATES} from "../constants/templates";
 import {formatSeconds} from "../utils/format";
-import {lrcToPlain} from "../utils/lyrics";
 import {CustomSelect} from "../components/CustomSelect";
 import {useTaskPolling} from "../hooks/useTaskPolling";
 import {GenerationProgress} from "../components/create/GenerationProgress";
@@ -215,6 +214,7 @@ export default function CreatePage() {
                 mood: store.selectedMoods[0],
                 language: store.language,
                 duration: store.duration,
+                title: store.title || undefined,
             });
             // Backend returns LRC format; display plain text in textarea
             store.setLyrics(res.lyrics);
@@ -285,9 +285,10 @@ export default function CreatePage() {
                     mood: mood || undefined,
                     language: currentStore.language,
                     duration: currentStore.duration,
+                    title: style?.title_suggestion || currentStore.title || undefined,
                 });
                 if (lyricsRes?.lyrics) {
-                    store.setLyrics(lrcToPlain(lyricsRes.lyrics));
+                    store.setLyrics(lyricsRes.lyrics);
                     store.setLyricsAiGenerated(true);
                 }
             } catch {
@@ -389,6 +390,7 @@ export default function CreatePage() {
                         mood: mood,
                         language: store.language,
                         duration: store.duration,
+                        title: style?.title_suggestion || store.title || undefined,
                     });
                     if (lyricsRes?.lyrics) {
                         lyricsText = lyricsRes.lyrics;
@@ -910,7 +912,7 @@ export default function CreatePage() {
                                 {/* Lyrics textarea */}
                                 <textarea
                                     ref={lyricsRef}
-                                    value={store.lyricsAiGenerated ? lrcToPlain(store.lyrics) : store.lyrics}
+                                    value={store.lyrics}
                                     onChange={(e) => { store.setLyrics(e.target.value); store.setLyricsAiGenerated(false); }}
                                     placeholder={t("create.lyricsPlaceholder")}
                                     rows={10}
@@ -1270,37 +1272,6 @@ export default function CreatePage() {
                     </motion.div>
                 )}
 
-                {/* Global AI Polish button (Custom mode only) */}
-                {store.mode === "custom" && (
-                    <motion.div
-                        variants={sectionVariants}
-                        initial="hidden"
-                        animate="visible"
-                        transition={{delay: 0.19, duration: 0.35}}
-                        className="pt-1"
-                    >
-                        <button
-                            onClick={handleGlobalPolish}
-                            disabled={!store.prompt.trim() || globalPolishing || isGenerating}
-                            className="w-full flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl text-[14px] font-semibold
-                                   text-primary-600 bg-primary-50 border-2 border-primary-200
-                                   hover:bg-primary-100 hover:border-primary-300
-                                   disabled:opacity-40 disabled:cursor-not-allowed
-                                   transition-all cursor-pointer active:scale-[0.98]"
-                        >
-                            {globalPolishing ? (
-                                <Loader2 className="w-4.5 h-4.5 animate-spin"/>
-                            ) : (
-                                <Wand2 className="w-4.5 h-4.5"/>
-                            )}
-                            {globalPolishing ? t("create.globalPolishing") : t("create.globalPolish")}
-                        </button>
-                        <p className="text-center text-[11px] text-text-tertiary mt-1.5">
-                            {t("create.globalPolishHint")}
-                        </p>
-                    </motion.div>
-                )}
-
                 {/* ================================================================
             SECTION: Generate Button
            ================================================================ */}
@@ -1399,6 +1370,43 @@ export default function CreatePage() {
                 {/* Bottom spacer for player clearance */}
                 <div className="h-20"/>
             </div>
+
+            {/* Floating AI Polish button */}
+            <AnimatePresence>
+                {(store.mode === "custom" || store.mode === "smart") && store.prompt.trim() && (
+                    <motion.div
+                        initial={{opacity: 0, x: 20, scale: 0.9}}
+                        animate={{opacity: 1, x: 0, scale: 1}}
+                        exit={{opacity: 0, x: 20, scale: 0.9}}
+                        transition={{duration: 0.25, ease: "easeOut"}}
+                        className="fixed right-6 bottom-28 z-40 flex flex-col items-end gap-1"
+                    >
+                        <motion.button
+                            whileHover={{scale: 1.04}}
+                            whileTap={{scale: 0.97}}
+                            onClick={handleGlobalPolish}
+                            disabled={globalPolishing || isGenerating}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-semibold
+                                       text-white bg-gradient-to-r from-primary-600 to-accent-500
+                                       shadow-lg shadow-primary-300/40
+                                       disabled:opacity-40 disabled:cursor-not-allowed
+                                       transition-all cursor-pointer"
+                        >
+                            {globalPolishing ? (
+                                <Loader2 className="w-4 h-4 animate-spin"/>
+                            ) : (
+                                <Wand2 className="w-4 h-4"/>
+                            )}
+                            {globalPolishing ? t("create.globalPolishing") : t("create.globalPolish")}
+                        </motion.button>
+                        {store.mode === "custom" && (
+                            <span className="text-[10px] text-text-tertiary mr-1">
+                                {t("create.globalPolishHint")}
+                            </span>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

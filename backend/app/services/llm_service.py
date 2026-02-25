@@ -55,6 +55,12 @@ Rough line count guidelines:
 - Rhyme must serve meaning. Skip a rhyme rather than force awkward phrasing.
 - Chorus = emotional peak, catchiest part. Bridge = contrast.
 
+## CRITICAL: Duration Matching
+- The lyrics MUST cover the entire target duration. For a 4-minute (240s) song, you need ~35-50 lines spanning the full 240 seconds.
+- Do NOT generate only half the needed lyrics. Calculate: if duration is 240s and each line takes ~4s, you need ~45-55 lines (accounting for gaps).
+- The LAST timestamp must be close to (duration - 15s) to leave room for only a short outro.
+- Check your work: if the target is 240s but your last timestamp is only at 120s, you have NOT written enough lyrics.
+
 ## Language Rules
 - If language is "zh" or Chinese: write ALL lyrics in Chinese, poetic and literary quality
 - Do not include any section tags in the output — only [MM:SS.xx] timestamps
@@ -329,11 +335,14 @@ class LLMService:
         language: str = "en",
         duration: float = 240.0,
         caption: str | None = None,
+        title: str | None = None,
     ) -> str:
         dur_int = int(duration)
 
         user_content = f"Write song lyrics about: {prompt}"
         user_content += f"\nDuration: {dur_int} seconds"
+        if title:
+            user_content += f"\nTitle: {title}"
         if genre:
             user_content += f"\nGenre: {genre}"
         if mood:
