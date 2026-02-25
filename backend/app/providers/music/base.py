@@ -25,17 +25,51 @@ class MusicProviderConfig(BaseModel):
 
 
 class MusicGenerationRequest(BaseModel):
-    prompt: str = Field(..., description="Text description of desired music")
-    lyrics: str | None = None
+    """Model-agnostic request for music generation.
+
+    ``lyrics`` is always in **LRC format** (``[MM:SS.xx]text``).
+    Providers that need plain text should strip timestamps internally.
+    """
+
+    prompt: str = Field(..., description="Text caption describing desired music")
+    lyrics: str | None = Field(
+        default=None,
+        description="Lyrics in LRC format ([MM:SS.xx]text). Providers strip timestamps if needed.",
+    )
     duration: float = Field(default=30.0, ge=1.0, le=600.0)
-    genre: str | None = None
-    mood: str | None = None
     tempo: int | None = Field(default=None, ge=40, le=240)
     musical_key: str | None = None
-    instruments: list[str] | None = None
     instrumental: bool = False
     seed: int | None = None
     language: str = Field(default="en", description="Vocal language code")
+
+    # -- Style transfer / Cover / Repaint --
+    reference_audio_path: str | None = Field(
+        default=None, description="Path to reference audio for style/timbre guidance",
+    )
+    src_audio_path: str | None = Field(
+        default=None, description="Path to source audio for cover or repaint",
+    )
+    task_type: str = Field(
+        default="text2music",
+        description="Generation task type: text2music, cover, or repaint",
+    )
+    audio_cover_strength: float = Field(
+        default=1.0, ge=0.0, le=1.0,
+        description="Cover strength (0.0 = ignore source, 1.0 = faithful cover)",
+    )
+    cover_noise_strength: float = Field(
+        default=0.0, ge=0.0, le=1.0,
+        description="Noise injection strength for cover generation",
+    )
+    repainting_start: float = Field(
+        default=0.0, ge=0.0,
+        description="Repaint region start time in seconds",
+    )
+    repainting_end: float | None = Field(
+        default=None,
+        description="Repaint region end time in seconds (None = end of audio)",
+    )
 
 
 class MusicGenerationResponse(BaseModel):

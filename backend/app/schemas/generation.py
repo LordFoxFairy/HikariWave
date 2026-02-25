@@ -101,6 +101,42 @@ class MusicGenerationRequest(BaseModel):
         default=True,
         description="Whether to auto-generate cover art",
     )
+    task_type: str = Field(
+        default="text2music",
+        description="Task type: text2music, cover, or repaint",
+    )
+    audio_cover_strength: float = Field(
+        default=1.0, ge=0.0, le=1.0,
+        description="Cover strength (0.0-1.0)",
+    )
+    cover_noise_strength: float = Field(
+        default=0.0, ge=0.0, le=1.0,
+        description="Cover noise injection strength",
+    )
+    repainting_start: float = Field(
+        default=0.0, ge=0.0,
+        description="Repaint region start time in seconds",
+    )
+    repainting_end: float | None = Field(
+        default=None,
+        description="Repaint region end time in seconds",
+    )
+
+
+# --- Style Reference Analysis ---
+
+
+class StyleReferenceRequest(BaseModel):
+    description: str = Field(..., description="Textual style reference (e.g. 'like Jay Chou guitar pop')")
+
+
+class StyleReferenceResponse(BaseModel):
+    caption: str
+    genre: str | None = None
+    mood: str | None = None
+    tempo: int | None = None
+    musical_key: str | None = None
+    instruments: list[str] = Field(default_factory=list)
 
 
 # --- Lyrics ---

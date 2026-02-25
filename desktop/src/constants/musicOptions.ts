@@ -60,9 +60,3 @@ export const sectionVariants = {
     visible: {opacity: 1, y: 0},
 };
 
-export function tempoLabelKey(bpm: number): string {
-    if (bpm < 80) return "create.slow";
-    if (bpm < 110) return "create.medium";
-    if (bpm < 140) return "create.fast";
-    return "create.veryFast";
-}

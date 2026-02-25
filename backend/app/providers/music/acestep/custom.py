@@ -37,6 +37,7 @@ from backend.app.providers.music.base import (
     MusicProviderConfig,
 )
 from backend.app.providers.music.utils import select_device, to_wav
+from backend.app.utils.lrc import lrc_to_plain
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +242,7 @@ class AceStepMusicProvider(BaseMusicProvider):
             raise RuntimeError("VAE not loaded — cannot decode audio.")
 
         duration = min(request.duration, float(self.config.max_duration))
+
         logger.info("Generating: %r (%.0fs)", request.prompt[:80], duration)
 
         wav_bytes, sr = await self._generate(request, duration)
@@ -271,7 +273,9 @@ class AceStepMusicProvider(BaseMusicProvider):
 
             # Encode text prompt and lyrics
             text_hidden, text_mask = self._encode_text(request.prompt)
-            lyric_hidden, lyric_mask = self._encode_text(request.lyrics or "")
+            # Strip LRC timestamps — text encoder needs plain text
+            plain_lyrics = lrc_to_plain(request.lyrics) if request.lyrics else ""
+            lyric_hidden, lyric_mask = self._encode_text(plain_lyrics)
 
             # Latent space: 25 Hz, 64 channels
             n_frames = int(duration * _LATENT_RATE)

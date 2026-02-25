@@ -9,7 +9,8 @@ from backend.app.providers.manager import provider_manager
 from backend.app.providers.music.base import BaseMusicProvider
 from backend.app.providers.music.base import MusicGenerationRequest as MusicReq
 from backend.app.repositories.generation import generation_repository
-from backend.app.services.llm_service import _normalize_section_tags, llm_service
+from backend.app.services.llm_service import llm_service
+from backend.app.utils.lrc import lrc_to_plain
 from backend.app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
@@ -17,42 +18,39 @@ logger = logging.getLogger(__name__)
 _GENERATION_TIMEOUT = 1800  # 30 minutes
 
 
-def _build_music_prompt(request: MusicReq) -> str:
-    """Build an ACE-Step caption from structured request fields.
+def _build_fallback_caption(
+    prompt: str,
+    genre: str | None = None,
+    mood: str | None = None,
+    instruments: list[str] | None = None,
+    instrumental: bool = False,
+) -> str:
+    """Build a music caption from structured fields when LLM enhancement is unavailable.
 
-    The caption describes ONLY the sonic character: genre, mood, instruments,
-    vocal style, and texture.  It must NOT include duration, BPM, key, or
-    song structure — those are controlled by dedicated ACE-Step parameters
-    and lyrics section tags respectively.
+    This is a model-agnostic fallback — it produces a descriptive text
+    caption suitable for any music generation model.
     """
-    parts: list[str] = []
+    sentences: list[str] = []
+    if prompt:
+        sentences.append(prompt)
 
-    # Genre
-    if request.genre:
-        parts.append(request.genre)
+    detail_parts: list[str] = []
+    if genre:
+        detail_parts.append(genre.lower())
+    if mood:
+        detail_parts.append(f"{mood.lower()} mood")
+    if instruments:
+        detail_parts.append(f"featuring {', '.join(instruments)}")
+    if instrumental:
+        detail_parts.append("purely instrumental, no vocals")
 
-    # Mood
-    if request.mood:
-        parts.append(request.mood)
+    if detail_parts:
+        sentences.append(", ".join(detail_parts).capitalize())
 
-    # Instruments with natural phrasing
-    if request.instruments:
-        parts.append(f"featuring {', '.join(request.instruments)}")
+    if not sentences:
+        return "A polished, well-produced music track with clear mix and dynamic range"
 
-    # Vocal vs instrumental
-    if request.instrumental:
-        parts.append("instrumental, no vocals")
-    elif request.lyrics:
-        parts.append("with vocal performance")
-
-    # Combine into a concise caption
-    caption = ", ".join(parts) if parts else "music"
-
-    # Prepend user's free-text prompt if present (it's the primary input)
-    if request.prompt:
-        caption = f"{request.prompt}, {caption}"
-
-    return caption
+    return ". ".join(sentences)
 
 
 _running_tasks: dict[str, asyncio.Task] = {}
@@ -82,6 +80,14 @@ class GenerationService:
         generate_cover: bool = True,
         parent_id: int | None = None,
         parent_type: str | None = None,
+        # Style transfer / Cover / Repaint
+        task_type: str = "text2music",
+        reference_audio_path: str | None = None,
+        src_audio_path: str | None = None,
+        audio_cover_strength: float = 1.0,
+        cover_noise_strength: float = 0.0,
+        repainting_start: float = 0.0,
+        repainting_end: float | None = None,
     ) -> Generation:
         task_id = uuid.uuid4().hex
         llm_provider_name: str | None = None
@@ -91,42 +97,71 @@ class GenerationService:
         if enhance_prompt:
             try:
                 enhanced_prompt = await llm_service.enhance_prompt(
-                    prompt, genre=genre, mood=mood
+                    prompt, genre=genre, mood=mood,
+                    instruments=instruments, language=language,
+                    instrumental=instrumental,
                 )
                 llm_provider_name = "llm"
             except Exception:
                 logger.exception("Prompt enhancement failed")
 
-        # LLM: generate lyrics (via service)
+        # LLM: generate lyrics when none provided
         if generate_lyrics and not lyrics:
             try:
                 lyrics = await llm_service.generate_lyrics(
                     prompt, genre=genre, mood=mood, language=language,
                     duration=duration,
+                    caption=enhanced_prompt,
                 )
                 if not llm_provider_name:
                     llm_provider_name = "llm"
             except Exception:
                 logger.exception("Lyrics generation failed")
 
-        # Normalise any non-English section tags before handing lyrics to the
-        # music provider — ACE-Step expects English tags like [Verse 1], [Chorus].
-        if lyrics:
-            lyrics = _normalize_section_tags(lyrics)
+        # Format user-provided lyrics into LRC.
+        # Skip if: (a) lyrics were just AI-generated above (already LRC),
+        #          (b) lyrics came from frontend as LRC (generate_lyrics=True means AI-generated).
+        if lyrics and not generate_lyrics:
+            try:
+                lyrics = await llm_service.format_lyrics(
+                    lyrics, duration=duration, language=language,
+                )
+            except Exception:
+                logger.exception("Lyrics formatting failed, using original")
 
-        # Resolve music provider
+        # Smart defaults: force instrumental mode when no lyrics are available
+        if not lyrics and not instrumental:
+            instrumental = True
+            logger.info("No lyrics available, forcing instrumental mode")
+
+        # When instrumental, ensure no stale lyrics leak through
+        if instrumental:
+            lyrics = None
+
+        # Build the caption: use LLM-enhanced prompt, or fallback to structured fields
+        caption = enhanced_prompt or _build_fallback_caption(
+            prompt, genre=genre, mood=mood,
+            instruments=instruments, instrumental=instrumental,
+        )
+
+        # Provider contract: lyrics in LRC format, provider strips if needed
         music_req = MusicReq(
-            prompt=enhanced_prompt or prompt,
+            prompt=caption,
             lyrics=lyrics,
             duration=duration,
-            genre=genre,
-            mood=mood,
             tempo=tempo,
             musical_key=musical_key,
-            instruments=instruments,
             instrumental=instrumental,
             seed=seed,
             language=language,
+            # Style transfer / Cover / Repaint
+            task_type=task_type,
+            reference_audio_path=reference_audio_path,
+            src_audio_path=src_audio_path,
+            audio_cover_strength=audio_cover_strength,
+            cover_noise_strength=cover_noise_strength,
+            repainting_start=repainting_start,
+            repainting_end=repainting_end,
         )
         music_provider = provider_manager.get_music_provider()
         music_provider_name = music_provider.config.name
@@ -300,17 +335,6 @@ class GenerationService:
                 progress_message="Starting generation...",
             )
 
-            # Build the full text prompt from structured fields before
-            # handing off to the provider (prompt construction is business
-            # logic, not a provider concern).
-            # Skip if the prompt was already enhanced by the LLM — the
-            # enhanced prompt already incorporates genre/mood/etc.
-            gen_record = await self._repo.get_by_task_id(task_id)
-            if not (gen_record and gen_record.enhanced_prompt):
-                music_req = music_req.model_copy(
-                    update={"prompt": _build_music_prompt(music_req)}
-                )
-
             await self._repo.update_status(
                 task_id,
                 "processing",
@@ -327,10 +351,10 @@ class GenerationService:
                     "title": (gen_record.title if gen_record and gen_record.title
                               else music_req.prompt[:50]),
                     "artist": "HikariWave AI",
-                    "genre": music_req.genre or "",
+                    "genre": gen_record.genre if gen_record and gen_record.genre else "",
                     "comment": music_req.prompt,
                     "album": "HikariWave Generations",
-                    "lyrics": gen_record.lyrics if gen_record else "",
+                    "lyrics": lrc_to_plain(gen_record.lyrics) if gen_record and gen_record.lyrics else "",
                     "tempo": str(gen_record.tempo) if gen_record and gen_record.tempo else "",
                     "year": str(datetime.now(UTC).year),
                     "mood": gen_record.mood if gen_record and gen_record.mood else "",
@@ -357,21 +381,22 @@ class GenerationService:
                 progress_message="Complete!",
                 completed_at=datetime.now(UTC),
             )
-            if response.lrc_lyrics:
-                completion_fields["lrc_lyrics"] = response.lrc_lyrics
 
-            # Save lyrics and LRC as local files (like standard music players)
+            # Lyrics are already in LRC format (with timestamps) from generate_lyrics / format_lyrics.
+            # Save both .lrc (original) and .txt (plain text stripped of timestamps).
             gen_record = await self._repo.get_by_task_id(task_id)
             if gen_record and gen_record.lyrics:
+                completion_fields["lrc_lyrics"] = gen_record.lyrics
                 try:
-                    await storage_service.save_lyrics(filename, gen_record.lyrics)
-                except Exception:
-                    logger.exception("Failed to save lyrics file (non-fatal)")
-            if response.lrc_lyrics:
-                try:
-                    await storage_service.save_lrc(filename, response.lrc_lyrics)
+                    await storage_service.save_lrc(filename, gen_record.lyrics)
                 except Exception:
                     logger.exception("Failed to save LRC file (non-fatal)")
+                try:
+                    await storage_service.save_lyrics(
+                        filename, lrc_to_plain(gen_record.lyrics),
+                    )
+                except Exception:
+                    logger.exception("Failed to save lyrics file (non-fatal)")
 
             await self._repo.update_status(
                 task_id,

@@ -3,150 +3,123 @@ import logging
 import re
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from pydantic import BaseModel, Field, field_validator
 
 from backend.app.providers.manager import provider_manager
 from backend.app.schemas.generation import StyleSuggestion
+from backend.app.utils.lrc import LRC_LINE_RE as _LRC_LINE_RE
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Chinese → English section tag mapping for ACE-Step compatibility
-# ---------------------------------------------------------------------------
-
-_SECTION_TAG_MAP = {
-    "前奏": "Intro",
-    "主歌": "Verse",
-    "第一段": "Verse 1",
-    "第二段": "Verse 2",
-    "第三段": "Verse 3",
-    "预副歌": "Pre-Chorus",
-    "副歌前": "Pre-Chorus",
-    "导歌": "Pre-Chorus",
-    "副歌": "Chorus",
-    "桥段": "Bridge",
-    "过桥": "Bridge",
-    "过渡": "Bridge",
-    "间奏": "Instrumental Break",
-    "尾声": "Outro",
-    "结尾": "Outro",
-    "尾奏": "Outro",
-}
-
-# Pre-compile regex: matches lines like [副歌], [副歌 2], [第二段], etc.
-_SECTION_TAG_RE = re.compile(
-    r"^\[(" + "|".join(re.escape(k) for k in _SECTION_TAG_MAP) + r")(?:\s*(\d+))?\]$",
-    re.MULTILINE,
-)
-
-
-def _normalize_section_tags(text: str) -> str:
-    """Replace non-English (Chinese) section tags with their English equivalents.
-
-    This is a safety-net post-processor: even if the LLM prompt asks for English
-    tags, some models still output Chinese ones.  ACE-Step was trained on English
-    tags and will try to *sing* unrecognised Chinese tags, causing garbled audio.
-    """
-    def _replace(m: re.Match) -> str:
-        chinese_tag = m.group(1)
-        number_suffix = m.group(2)
-        english = _SECTION_TAG_MAP.get(chinese_tag, chinese_tag)
-        if number_suffix:
-            return f"[{english} {number_suffix}]"
-        return f"[{english}]"
-
-    return _SECTION_TAG_RE.sub(_replace, text)
 
 # ---------------------------------------------------------------------------
 # System prompts (domain-specific, belong in service layer not providers)
 # ---------------------------------------------------------------------------
 
-LYRICS_SYSTEM_PROMPT = """You are a professional songwriter writing lyrics for an AI music generation model.
+LYRICS_SYSTEM_PROMPT = """You are a professional songwriter. Write lyrics in LRC format — every lyric line MUST have a timestamp.
 
-The model uses lyrics as a temporal script — section tags control how the song unfolds over time.
-The model aligns syllables to beats, so line length directly affects singing speed.
+## Output Format (LRC)
+Every line you output must be in the format: [MM:SS.xx]lyric text
+- MM = minutes (00, 01, 02, …)
+- SS = seconds (00-59)
+- xx = centiseconds (00-99)
+- Do NOT output section tags like [Verse 1] or [Chorus] — only timestamped lyric lines
+- Do NOT output blank lines
+- Every line gets a UNIQUE, strictly increasing timestamp
 
-## Line Length Rules (CRITICAL)
-- Each lyric line MUST have 6-10 syllables (Chinese: 6-10 characters)
-- Lines in the same section should have similar syllable counts (±2)
-- Too few syllables per line = singing too slow. Too many = words crammed together.
-- Short lines like "啊" or "oh yeah" will be stretched unnaturally — avoid them as standalone lines
+## Timing Rules
+1. Decide intro length based on genre/mood — rock may have a long guitar intro, EDM may drop vocals early, ballads may start with piano then voice. Use your musical judgement, do NOT always default to the same intro length.
+2. Each lyric line takes 3-5 seconds at normal tempo (ballad ~4-6s, fast ~2-3.5s)
+3. Leave natural gaps between song sections
+4. Instrumental breaks: leave appropriate gaps with no lyrics based on the song's feel
+5. Chorus repeats should take roughly the same amount of time each
+6. Last lyric should end before total duration (leave room for outro)
+7. Distribute lines EVENLY across the total duration — never compress many lines into a few seconds
 
-## Section Tags
-MUST be in English. Available tags:
-- Structure: [Intro], [Verse 1], [Pre-Chorus], [Chorus], [Bridge], [Outro]
-- Instrumental: [Instrumental], [Guitar Solo], [Piano Interlude]
-- Energy: [building energy], [high energy], [low energy]
-- Vocal: [raspy vocal], [whispered], [falsetto], [powerful belting], [harmonies]
-- NEVER use Chinese tags like [前奏], [副歌], [主歌], [桥段] etc.
+## Line Length & Phrasing
+- Each line should be 6-10 characters long for Chinese, or 6-12 words for English
+- Write naturally singable lines with consistent phrasing lengths
+- Avoid extremely short throwaway lines ("oh", "yeah", "啊") standing alone — fold them into phrases
+- Lines in the same section should feel rhythmically balanced
 
-## Song Structure by Duration
+## Song Structure
+Decide the structure yourself based on genre, mood, and duration. Use your professional songwriting knowledge.
+Rough line count guidelines:
+- Under 90s: ~14-18 lines
+- 90-180s: ~22-30 lines
+- 180-300s: ~35-50 lines
+- Over 300s: ~50-70 lines
 
-For songs under 90 seconds (SHORT):
-[Verse 1] (4 lines)
-[Chorus] (4 lines)
-[Verse 2] (4 lines)
-[Chorus] (4 lines)
-Total: ~16 lines. NO intro or outro. Vocals start immediately.
+## Avoiding AI-Sounding Lyrics
+- ONE core metaphor per song. Explore its facets, don't stack unrelated images.
+- Each line must carry meaning. No filler.
+- Rhyme must serve meaning. Skip a rhyme rather than force awkward phrasing.
+- Chorus = emotional peak, catchiest part. Bridge = contrast.
 
-For songs 90-180 seconds (MEDIUM):
-[Intro - instrumental]
-(leave blank — 5 seconds only)
-[Verse 1] (4-5 lines)
-[Pre-Chorus] (2 lines)
-[Chorus - high energy] (4-5 lines)
-[Verse 2] (4-5 lines)
-[Chorus - high energy] (4-5 lines)
-[Outro]
-(1-2 lines or leave blank for short fade)
-Total: ~22-27 lines.
+## Language Rules
+- If language is "zh" or Chinese: write ALL lyrics in Chinese, poetic and literary quality
+- Do not include any section tags in the output — only [MM:SS.xx] timestamps
 
-For songs 180-300 seconds (FULL):
-[Intro - instrumental]
-(leave blank — 5-8 seconds only)
-[Verse 1] (5-6 lines)
-[Pre-Chorus - building energy] (2-3 lines)
-[Chorus - high energy] (5-6 lines)
-[Verse 2] (5-6 lines)
-[Pre-Chorus - building energy] (2-3 lines)
-[Chorus - high energy] (5-6 lines)
-[Bridge] (4 lines)
-[Chorus - powerful belting] (5-6 lines)
-[Outro]
-(1-2 lines)
-Total: ~40-50 lines.
+Output ONLY LRC lines. No explanations, no preamble, no section tags."""
 
-## Key Rules
-- [Intro] must be SHORT (leave it blank or 1 line max). The model adds instrumental automatically.
-- [Outro] must be SHORT (0-2 lines). Do NOT pad the ending.
-- Each section tag goes on its own line
-- Leave a blank line between sections for breathing room
-- The Chorus should be the catchiest, most memorable part
-- Use ONE core metaphor per song, explore different aspects of it
-- If language is "zh" or Chinese, write in Chinese with poetic quality, but ALL tags in English
-- UPPERCASE words = stronger intensity (use sparingly)
-- Parentheses = background vocals: "We rise together (together)"
-- Output ONLY the lyrics with tags, no explanations"""
+LYRICS_FORMAT_SYSTEM_PROMPT = """You are a lyrics formatter. You receive user-written lyrics and output them in LRC format with timestamps.
 
-PROMPT_ENHANCEMENT_SYSTEM_PROMPT = """You are a music production assistant writing captions for an AI music generation model.
+## Your Job
+1. Clean up the lyrics: fix section structure, balance line lengths, merge short fragments
+2. Convert ALL section tags to timestamps — do NOT output any section tags
+3. Convert non-English tags (e.g. [前奏] → intro timing, [副歌] → chorus timing)
+4. Add proper timestamps based on the song duration
+5. Each line should be 6-10 characters for Chinese, 6-12 words for English
 
-The caption ONLY describes the sonic character of the music. It must NOT contain:
-- Duration or length information (e.g. "4-minute", "short piece")
-- Song structure descriptions (e.g. "verse-chorus form", "with intro and outro")
-- BPM numbers (tempo is set separately)
-- Key signatures (set separately)
+## Output Format (LRC)
+Every line: [MM:SS.xx]lyric text
+- Every timestamp must be UNIQUE and strictly increasing
+- Do NOT output section tags, blank lines, or explanations
 
-Instead, include these dimensions in a single descriptive paragraph:
-- Genre and sub-genre (e.g. "indie folk with ambient electronic textures")
-- Mood and emotional color (e.g. "melancholic, nostalgic, bittersweet")
-- Instrumentation with roles (e.g. "acoustic guitar carries the melody, strings provide warmth, soft drums keep rhythm")
-- Vocal characteristics (e.g. "female breathy vocal", "male warm baritone", "choir harmonies")
-- Timbre and texture (e.g. "warm, intimate, lo-fi", "bright, polished, crisp")
-- Production style (e.g. "bedroom pop production", "studio-polished", "live recording feel")
-- Era or reference style (e.g. "90s alternative rock", "modern R&B")
+## Timing Rules
+- Decide intro length based on genre/mood — do NOT always default to the same value
+- Each lyric line: 3-5 seconds apart
+- Leave natural gaps between sections
+- Leave room for instrumental breaks as appropriate
+- Last line should end before total duration
+- Distribute lines EVENLY
 
-Keep it concise (2-4 sentences). Be specific — "sad piano ballad with breathy female vocal" is better than "a sad song".
-Do NOT include contradicting styles (e.g. "classical strings" + "hardcore metal").
-Output ONLY the caption text, no explanations."""
+## Duration guidelines (lyric line counts):
+- Under 90s: ~14-18 lines
+- 90-180s: ~22-30 lines
+- 180-300s: ~35-50 lines
+- Over 300s: ~50-70 lines
+
+## What NOT to change:
+- The lyrics content (words, meaning, language, rhyme, metaphors)
+- The creative direction
+
+Output ONLY LRC lines. No explanations."""
+
+PROMPT_ENHANCEMENT_SYSTEM_PROMPT = """You are an expert music producer writing a caption for an AI music generation model.
+
+Write a vivid, detailed caption describing the sonic character of a track. Think of it as a producer's brief — precise enough that an engineer could recreate the sound.
+
+MUST include (weave naturally into 3-5 sentences):
+1. Genre + sub-genre specifics ("melancholic indie folk", "lo-fi bedroom pop", "cinematic orchestral")
+2. Instruments AND their sonic roles ("warm acoustic guitar carries the melody", "punchy 808 kick anchors the low end", "lush string pad provides harmonic bed")
+3. Vocal character ("breathy female vocal with intimate delivery", "powerful male tenor with theatrical energy", "layered choir harmonies")
+4. Timbre + texture words ("warm", "crisp", "airy", "raw", "polished", "lush", "punchy")
+5. Production style + era reference ("studio-polished modern pop production", "lo-fi tape-saturated 90s aesthetic", "clean, spacious mix with reverb-drenched vocals")
+
+MUST NOT include:
+- Duration, length, or time references
+- Song structure (verse, chorus, intro, outro)
+- BPM or tempo numbers
+- Key signatures
+- The word "song" or "track" at the beginning
+
+Good example:
+"A melancholic indie folk piece with warm acoustic guitar fingerpicking carrying the melody over a gentle string pad. A breathy, intimate female vocal delivers the lyrics with restrained emotion, occasionally breaking into a higher register. The production is lo-fi and tape-saturated, with subtle room reverb and a soft brush kit providing understated rhythmic support. The overall atmosphere is nostalgic and bittersweet, evoking rainy afternoons and quiet reflection."
+
+Bad example:
+"A sad folk song with guitar and singing." (too vague, no texture/production detail)
+
+Output ONLY the caption, no explanations or preamble."""
 
 STYLE_SUGGESTION_SYSTEM_PROMPT = """\
 You are a music style analyst. \
@@ -178,6 +151,27 @@ TITLE_GENERATION_SYSTEM_PROMPT = """You are a creative songwriter assistant.
 Generate a single creative, catchy song title based on the provided context.
 Respond with ONLY the title text, nothing else. No quotes, no explanation."""
 
+STYLE_REFERENCE_SYSTEM_PROMPT = """You are a professional music analyst. The user describes a reference song or style they want to emulate. Analyze it and output a detailed JSON object with the following fields:
+
+{
+  "caption": "A vivid 3-5 sentence music caption describing the sonic character (genre, sub-genre, instruments, vocal style, production style, timbre, texture, era reference). This will be fed directly to a music generation model.",
+  "genre": "Primary genre tag (e.g. 'Pop', 'Rock', 'Hip-Hop')",
+  "mood": "Primary mood (e.g. 'Nostalgic', 'Energetic')",
+  "tempo": 120,
+  "musical_key": "Key signature (e.g. 'G Major', 'A Minor') or empty string if unknown",
+  "instruments": ["Instrument1", "Instrument2"]
+}
+
+Rules:
+- The caption must be extremely detailed and specific — think producer's brief
+- Include timbre words (warm, crisp, airy, punchy, lush, lo-fi, polished)
+- Describe vocal character if applicable
+- Include production style and era reference
+- tempo: integer BPM (estimate from genre if not stated)
+- instruments: 2-5 instruments
+
+Respond ONLY with the JSON object, no other text."""
+
 COVER_ART_PROMPT_SYSTEM_PROMPT = """You are an album cover art director.
 Given song metadata (title, genre, mood, lyrics keywords), generate a detailed
 image generation prompt for creating album cover art.
@@ -194,6 +188,57 @@ _STYLE_DEFAULTS = {
     "references": [],
 }
 
+# ---------------------------------------------------------------------------
+# LRC structured output schema for create_agent response_format
+# ---------------------------------------------------------------------------
+
+class LRCResponse(BaseModel):
+    """Structured response for LRC lyrics generation.
+
+    The agent must return its LRC content in the ``lrc`` field.
+    Pydantic validators automatically enforce format, uniqueness, and ordering.
+    If validation fails, ``create_agent`` feeds the error back to the LLM for
+    self-correction.
+    """
+
+    lrc: str = Field(description="Complete LRC lyrics. Each line: [MM:SS.xx]lyric text")
+
+    @field_validator("lrc")
+    @classmethod
+    def validate_lrc(cls, v: str) -> str:
+        lines = [ln.strip() for ln in v.strip().splitlines() if ln.strip()]
+        if not lines:
+            raise ValueError("LRC must contain at least one line")
+
+        clean: list[str] = []
+        prev_ts = -1.0
+        for line in lines:
+            m = _LRC_LINE_RE.match(line)
+            if not m:
+                continue  # skip non-LRC lines silently
+            mins, secs, cs_raw, text = m.groups()
+            cs = int(cs_raw.ljust(3, "0"))
+            ts = int(mins) * 60 + int(secs) + cs / 1000
+            if ts <= prev_ts:
+                raise ValueError(
+                    f"Timestamps must be strictly increasing: "
+                    f"[{mins}:{secs}.{cs_raw}] ({ts:.2f}s) <= previous ({prev_ts:.2f}s)"
+                )
+            prev_ts = ts
+            clean.append(line)
+
+        if len(clean) < 5:
+            raise ValueError(
+                f"Too few valid LRC lines ({len(clean)}). "
+                "Expected at least 5 lines for a song."
+            )
+
+        return "\n".join(clean)
+
+
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
 
 def _to_langchain_messages(
     messages: list[dict[str, str]],
@@ -216,25 +261,14 @@ async def _chat(
     messages: list[dict[str, str]],
     **kwargs,
 ) -> str:
-    """Resolve provider via router, init model if needed, call ainvoke.
-
-    This is the single point where the service layer talks to LLM providers.
-    The provider only supplies the model client — all prompt construction and
-    response parsing happens in the service methods.
-
-    Per-request parameters (``temperature``, ``max_tokens``) are passed to
-    ``ainvoke`` via the model's ``bind`` method so they apply to the current
-    call without requiring re-initialisation.
-    """
+    """Simple single-shot LLM call (used by non-lyrics tasks)."""
     provider, model_name = provider_manager.get_llm_provider(task)
 
-    # Re-initialise if model name changed or not yet loaded
     if not provider.is_loaded or provider.current_model_name != model_name:
         await provider.init_model(model_name)
 
     lc_messages = _to_langchain_messages(messages)
 
-    # Apply per-request overrides (temperature, max_tokens, etc.)
     invoke_kwargs = {}
     if "temperature" in kwargs:
         invoke_kwargs["temperature"] = kwargs["temperature"]
@@ -249,12 +283,42 @@ async def _chat(
     return response.content
 
 
+async def _agent_generate_lrc(
+    system_prompt: str,
+    user_content: str,
+) -> str:
+    """Use ``create_agent`` with ``response_format=LRCResponse`` for lyrics.
+
+    The agent loop automatically re-prompts the LLM when the Pydantic
+    validator in ``LRCResponse`` rejects the output (bad timestamps,
+    duplicates, too few lines, etc.).  This gives self-correcting generation.
+    """
+    from langchain.agents import create_agent
+
+    provider, model_name = provider_manager.get_llm_provider("lyrics")
+    if not provider.is_loaded or provider.current_model_name != model_name:
+        await provider.init_model(model_name)
+
+    agent = create_agent(
+        model=provider.model,
+        system_prompt=system_prompt,
+        response_format=LRCResponse,
+    )
+
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": user_content}]},
+    )
+
+    # Extract validated LRC from structured response
+    structured: LRCResponse = result["structured_response"]
+    return structured.lrc
+
+
 class LLMService:
     """Domain service wrapping all LLM-powered features.
 
-    This service owns the business logic: prompt construction, response parsing,
-    and fallback handling.  Providers are used only as model suppliers — the
-    service gets the initialised model and calls it directly.
+    Lyrics generation uses ``create_agent`` with ``response_format`` for
+    automatic self-correction.  Other tasks use simple ``_chat`` calls.
     """
 
     async def generate_lyrics(
@@ -264,6 +328,7 @@ class LLMService:
         mood: str | None = None,
         language: str = "en",
         duration: float = 240.0,
+        caption: str | None = None,
     ) -> str:
         dur_int = int(duration)
 
@@ -275,51 +340,56 @@ class LLMService:
             user_content += f"\nMood: {mood}"
         user_content += f"\nLanguage: {language}"
 
-        # Duration-specific structure guidance
-        if dur_int < 90:
+        if caption:
             user_content += (
-                f"\n\nThis is a SHORT {dur_int}-second song."
-                "\n- NO [Intro] or [Outro]. Vocals start on the first line."
-                "\n- Only 14-18 lyric lines total."
-                "\n- Structure: [Verse 1] → [Chorus] → [Verse 2] → [Chorus]"
-                "\n- Each line must have 6-10 syllables."
-            )
-        elif dur_int < 180:
-            user_content += (
-                f"\n\nThis is a MEDIUM {dur_int}-second song."
-                "\n- [Intro - instrumental] with NO lyric lines (5 seconds only)."
-                "\n- 22-27 lyric lines total."
-                "\n- Each line must have 6-10 syllables."
-                "\n- Use [high energy] on Chorus tags."
-            )
-        else:
-            user_content += (
-                f"\n\nThis is a FULL {dur_int}-second song."
-                "\n- [Intro - instrumental] with NO lyric lines (5-8 seconds only)."
-                "\n- 40-50 lyric lines total."
-                "\n- Each line must have 6-10 syllables."
-                "\n- Use energy tags: [building energy] on Pre-Chorus, [high energy] on Chorus."
-                "\n- Final chorus: [Chorus - powerful belting]"
+                f"\n\nMusic caption (use this for stylistic context):\n{caption}"
             )
 
-        messages = [
-            {"role": "system", "content": LYRICS_SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
-        ]
-        result = await _chat("lyrics", messages)
-        return _normalize_section_tags(result)
+        user_content += f"\n\nTotal song duration: {dur_int} seconds. Decide structure, intro length, and pacing yourself based on the genre and mood."
+
+        return await _agent_generate_lrc(LYRICS_SYSTEM_PROMPT, user_content)
+
+    async def format_lyrics(
+        self,
+        lyrics: str,
+        duration: float = 240.0,
+        language: str = "en",
+    ) -> str:
+        """Format user-written lyrics into LRC via agent with self-correction."""
+        dur_int = int(duration)
+
+        user_content = f"Format the following lyrics and add timestamps:\n\n{lyrics}"
+        user_content += f"\n\nDuration: {dur_int} seconds"
+        user_content += f"\nLanguage: {language}"
+
+        return await _agent_generate_lrc(LYRICS_FORMAT_SYSTEM_PROMPT, user_content)
 
     async def enhance_prompt(
         self,
         prompt: str,
         genre: str | None = None,
         mood: str | None = None,
+        instruments: list[str] | None = None,
+        language: str | None = None,
+        instrumental: bool = False,
     ) -> str:
-        user_content = f"Enhance this music description: {prompt}"
+        user_content = f"Write a detailed music caption for: {prompt}"
         if genre:
             user_content += f"\nGenre: {genre}"
         if mood:
             user_content += f"\nMood: {mood}"
+        if instruments:
+            user_content += f"\nInstruments: {', '.join(instruments)}"
+        if language:
+            lang_lower = language.lower()
+            if lang_lower in ("zh", "chinese"):
+                user_content += "\nVocal language: Chinese"
+            elif lang_lower in ("ja", "japanese"):
+                user_content += "\nVocal language: Japanese"
+            elif lang_lower in ("ko", "korean"):
+                user_content += "\nVocal language: Korean"
+        if instrumental:
+            user_content += "\nThis is an instrumental track, no vocals."
         messages = [
             {"role": "system", "content": PROMPT_ENHANCEMENT_SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
@@ -343,7 +413,6 @@ class LLMService:
         except json.JSONDecodeError:
             logger.warning("Failed to parse style suggestion JSON, returning defaults")
             return StyleSuggestion(**_STYLE_DEFAULTS)
-        # Ensure all expected keys exist with correct types
         result = {}
         for key, default in _STYLE_DEFAULTS.items():
             val = parsed.get(key, default)
@@ -375,6 +444,37 @@ class LLMService:
         ]
         title = await _chat("suggestion", messages, temperature=0.9)
         return title.strip().strip("\"'")
+
+    async def analyze_style_reference(self, description: str) -> dict:
+        """Analyze a textual style reference and return structured style params + enhanced caption.
+
+        The user provides a description like "像周杰伦的《晴天》那样的吉他流行" and
+        the LLM returns a detailed music caption plus structured parameters.
+        """
+        messages = [
+            {"role": "system", "content": STYLE_REFERENCE_SYSTEM_PROMPT},
+            {"role": "user", "content": description},
+        ]
+        raw = await _chat("enhancement", messages, temperature=0.7)
+        raw = raw.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            lines = raw.split("\n")
+            lines = [ln for ln in lines if not ln.strip().startswith("```")]
+            raw = "\n".join(lines)
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse style reference JSON, returning caption only")
+            return {"caption": raw, "genre": None, "mood": None, "tempo": None, "musical_key": None, "instruments": []}
+        return {
+            "caption": parsed.get("caption", raw),
+            "genre": parsed.get("genre"),
+            "mood": parsed.get("mood"),
+            "tempo": parsed.get("tempo"),
+            "musical_key": parsed.get("musical_key"),
+            "instruments": parsed.get("instruments", []),
+        }
 
     async def generate_cover_prompt(
         self,
@@ -413,7 +513,6 @@ class LLMService:
         Returns the path to the saved PNG file.
         """
         import base64
-        import re
         import uuid
         from pathlib import Path
 
@@ -436,6 +535,7 @@ class LLMService:
         payload = {
             "model": model_name,
             "messages": [{"role": "user", "content": prompt}],
+            "modalities": ["image", "text"],
         }
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -449,32 +549,47 @@ class LLMService:
             resp.raise_for_status()
             data = resp.json()
 
-        # Extract base64 image from chat completions response.
-        # The model returns choices[0].message.content as a list of parts;
-        # look for a part with type "image_url" containing a data URI.
+        # Extract base64 image from the response.
         choices = data.get("choices", [])
         if not choices:
             raise RuntimeError("No choices in image generation response")
 
-        content = choices[0].get("message", {}).get("content", "")
+        message = choices[0].get("message", {})
         image_b64 = None
 
-        # content may be a list of parts (multimodal response)
-        if isinstance(content, list):
-            for part in content:
-                if part.get("type") == "image_url":
-                    data_uri = part.get("image_url", {}).get("url", "")
-                    m = re.match(r"data:image/[^;]+;base64,(.+)", data_uri, re.DOTALL)
-                    if m:
-                        image_b64 = m.group(1)
-                        break
-        elif isinstance(content, str):
-            # Fallback: content itself may be a data URI
-            m = re.match(r"data:image/[^;]+;base64,(.+)", content, re.DOTALL)
-            if m:
-                image_b64 = m.group(1)
+        # Primary: OpenRouter returns images in message.images array
+        for img in message.get("images", []):
+            if img.get("type") == "image_url":
+                data_uri = img.get("image_url", {}).get("url", "")
+                m = re.match(r"data:image/[^;]+;base64,(.+)", data_uri, re.DOTALL)
+                if m:
+                    image_b64 = m.group(1)
+                    break
+
+        # Fallback: some providers return images inside content parts
+        if not image_b64:
+            content = message.get("content", "")
+            if isinstance(content, list):
+                for part in content:
+                    if part.get("type") == "image_url":
+                        data_uri = part.get("image_url", {}).get("url", "")
+                        m = re.match(
+                            r"data:image/[^;]+;base64,(.+)", data_uri, re.DOTALL,
+                        )
+                        if m:
+                            image_b64 = m.group(1)
+                            break
+                    elif part.get("inline_data"):
+                        image_b64 = part["inline_data"].get("data", "")
+                        if image_b64:
+                            break
+            elif isinstance(content, str):
+                m = re.match(r"data:image/[^;]+;base64,(.+)", content, re.DOTALL)
+                if m:
+                    image_b64 = m.group(1)
 
         if not image_b64:
+            logger.error("Cover art response structure: %s", list(message.keys()))
             raise RuntimeError("No image data found in response")
 
         image_bytes = base64.b64decode(image_b64)

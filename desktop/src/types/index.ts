@@ -38,6 +38,8 @@ export interface Generation {
     completed_at?: string;
 }
 
+export type TaskType = "text2music" | "cover" | "repaint";
+
 export interface GenerateMusicRequest {
     prompt: string;
     lyrics?: string;
@@ -51,6 +53,23 @@ export interface GenerateMusicRequest {
     language?: string;
     instrumental?: boolean;
     generate_cover?: boolean;
+    enhance_prompt?: boolean;
+    generate_lyrics?: boolean;
+    seed?: number;
+    task_type?: TaskType;
+    audio_cover_strength?: number;
+    cover_noise_strength?: number;
+    repainting_start?: number;
+    repainting_end?: number;
+}
+
+export interface StyleReferenceResult {
+    caption: string;
+    genre?: string | null;
+    mood?: string | null;
+    tempo?: number | null;
+    musical_key?: string | null;
+    instruments: string[];
 }
 
 export interface ExtendRequest {
@@ -115,7 +134,8 @@ export interface StyleSuggestRequest {
 }
 
 export interface TitleGenerateRequest {
-    lyrics: string;
+    prompt?: string;
+    lyrics?: string;
     genre?: string;
     mood?: string;
 }

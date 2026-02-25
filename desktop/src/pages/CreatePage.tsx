@@ -4,24 +4,24 @@ import {
     AlertCircle,
     CheckCircle,
     Clock,
-    Gauge,
     Globe,
     Guitar,
     KeyRound,
     Loader2,
     Mic,
     Music,
+    Paintbrush,
     Plus,
     SlidersHorizontal,
     Sparkles,
     Type,
-    Volume2,
+    Upload,
     VolumeX,
     Wand2,
     X,
     Zap,
 } from "lucide-react";
-import type {ExtendRequest, Generation, RemixRequest} from "../types";
+import type {ExtendRequest, Generation, RemixRequest, TaskType} from "../types";
 import {
     GENRE_OPTIONS,
     INSTRUMENT_OPTIONS,
@@ -39,10 +39,10 @@ import {
     moodGradients,
     sectionVariants,
     STRUCTURE_TAGS,
-    tempoLabelKey,
 } from "../constants/musicOptions";
 import {MUSIC_TEMPLATES} from "../constants/templates";
 import {formatSeconds} from "../utils/format";
+import {lrcToPlain} from "../utils/lyrics";
 import {CustomSelect} from "../components/CustomSelect";
 import {useTaskPolling} from "../hooks/useTaskPolling";
 import {GenerationProgress} from "../components/create/GenerationProgress";
@@ -55,6 +55,7 @@ export default function CreatePage() {
     const playerStore = usePlayerStore();
     const {t} = useTranslation();
     const [lyricsLoading, setLyricsLoading] = useState(false);
+    const [globalPolishing, setGlobalPolishing] = useState(false);
     const smartFillingRef = useRef(false);
     const [completedGen, setCompletedGen] = useState<Generation | null>(null);
     const resultRef = useRef<HTMLDivElement>(null);
@@ -73,6 +74,9 @@ export default function CreatePage() {
     const [remixPrompt, setRemixPrompt] = useState("");
     const [coverRegenerating, setCoverRegenerating] = useState(false);
     const [extendRemixLoading, setExtendRemixLoading] = useState(false);
+    const [styleAnalyzing, setStyleAnalyzing] = useState(false);
+    const referenceAudioInputRef = useRef<HTMLInputElement>(null);
+    const srcAudioInputRef = useRef<HTMLInputElement>(null);
     const {pollTask, cancelPolling, progressMessage} = useTaskPolling({resultRef});
 
     const isGenerating = store.generationStatus === "pending" || store.generationStatus === "processing";
@@ -212,17 +216,9 @@ export default function CreatePage() {
                 language: store.language,
                 duration: store.duration,
             });
+            // Backend returns LRC format; display plain text in textarea
             store.setLyrics(res.lyrics);
-            if (res.suggestions) {
-                store.applyAiSuggestions({
-                    genres: res.suggestions.genres?.length ? res.suggestions.genres : undefined,
-                    moods: res.suggestions.moods?.length ? res.suggestions.moods : undefined,
-                    tempo: res.suggestions.tempo || undefined,
-                    musicalKey: res.suggestions.musical_key || undefined,
-                    instruments: res.suggestions.instruments?.length ? res.suggestions.instruments : undefined,
-                    title: res.suggestions.title_suggestion || undefined,
-                });
-            }
+            store.setLyricsAiGenerated(true);
             store.setSuccessMessage(t("create.lyricsGeneratedSuccess"));
         } catch {
             store.setErrorMessage(t("create.lyricsGenerateFailed"));
@@ -236,7 +232,8 @@ export default function CreatePage() {
         store.setAiSuggesting("title", true);
         try {
             const res = await api.generateTitle({
-                lyrics: store.lyrics || store.prompt,
+                prompt: store.prompt,
+                lyrics: store.lyrics || undefined,
                 genre: store.selectedGenres[0],
                 mood: store.selectedMoods[0],
             });
@@ -248,6 +245,104 @@ export default function CreatePage() {
         }
     }, [store, t]);
 
+    /* -- AI: Global polish (one-click enhance all fields) -- */
+    const handleGlobalPolish = useCallback(async () => {
+        if (!store.prompt.trim()) {
+            store.setErrorMessage(t("create.pleaseEnterDescription"));
+            return;
+        }
+        setGlobalPolishing(true);
+        store.setErrorMessage(null);
+
+        let style: import("../types").StyleSuggestion | null = null;
+
+        try {
+            // Step 1: Suggest style
+            style = await api.suggestStyle({prompt: store.prompt.trim()});
+            if (style) {
+                store.applyAiSuggestions({
+                    genres: style.genres?.length ? style.genres : undefined,
+                    moods: style.moods?.length ? style.moods : undefined,
+                    tempo: style.tempo || undefined,
+                    musicalKey: style.musical_key || undefined,
+                    instruments: style.instruments?.length ? style.instruments : undefined,
+                    title: style.title_suggestion || undefined,
+                });
+            }
+        } catch {
+            // Style suggestion failed, continue with other steps
+        }
+
+        // Step 2: Generate lyrics if none exist and not instrumental
+        const currentStore = useCreateStore.getState();
+        if (!currentStore.lyrics?.trim() && !currentStore.instrumental) {
+            try {
+                const genre = style?.genres?.join(", ") || currentStore.selectedGenres.join(", ");
+                const mood = style?.moods?.join(", ") || currentStore.selectedMoods.join(", ");
+                const lyricsRes = await api.generateLyrics({
+                    prompt: currentStore.prompt.trim(),
+                    genre: genre || undefined,
+                    mood: mood || undefined,
+                    language: currentStore.language,
+                    duration: currentStore.duration,
+                });
+                if (lyricsRes?.lyrics) {
+                    store.setLyrics(lrcToPlain(lyricsRes.lyrics));
+                    store.setLyricsAiGenerated(true);
+                }
+            } catch {
+                // Lyrics generation failed, continue
+            }
+        }
+
+        // Step 3: Generate title if still empty
+        const latestStore = useCreateStore.getState();
+        if (!latestStore.title?.trim()) {
+            try {
+                const titleRes = await api.generateTitle({
+                    prompt: latestStore.prompt.trim(),
+                    lyrics: latestStore.lyrics || undefined,
+                    genre: style?.genres?.[0] || latestStore.selectedGenres[0],
+                    mood: style?.moods?.[0] || latestStore.selectedMoods[0],
+                });
+                store.setTitle(titleRes.title);
+            } catch {
+                // Title generation is optional
+            }
+        }
+
+        store.setSuccessMessage(t("create.globalPolishSuccess"));
+        setGlobalPolishing(false);
+    }, [store, t]);
+
+    /* -- AI: Analyze style reference (Smart mode) -- */
+    const handleAnalyzeStyle = useCallback(async () => {
+        if (!store.styleReferenceText.trim()) return;
+        setStyleAnalyzing(true);
+        try {
+            const result = await api.analyzeStyleReference(store.styleReferenceText.trim());
+            if (result.caption) {
+                // Prepend the style caption to the prompt for richer generation
+                const currentPrompt = store.prompt.trim();
+                if (currentPrompt && !currentPrompt.includes(result.caption)) {
+                    store.setPrompt(currentPrompt);
+                }
+            }
+            store.applyAiSuggestions({
+                genres: result.genre ? [result.genre] : undefined,
+                moods: result.mood ? [result.mood] : undefined,
+                tempo: result.tempo || undefined,
+                musicalKey: result.musical_key || undefined,
+                instruments: result.instruments?.length ? result.instruments : undefined,
+            });
+            store.setSuccessMessage(t("create.styleAnalyzed"));
+        } catch {
+            store.setErrorMessage(t("create.styleAnalyzeFailed"));
+        } finally {
+            setStyleAnalyzing(false);
+        }
+    }, [store, t]);
+
     /* -- Generate music -- */
     const handleGenerate = useCallback(async () => {
         if (!store.prompt.trim()) {
@@ -256,21 +351,19 @@ export default function CreatePage() {
         }
 
         // Simple mode: auto-fill via AI before generating
-        if (store.mode === "smart" && !store.lyrics && !store.title && store.selectedGenres.length === 0) {
+        // Run whenever smart mode has no lyrics yet (even if user selected genres via template)
+        if (store.mode === "smart" && !store.lyrics) {
             smartFillingRef.current = true;
             store.setGenerationStatus("pending");
             store.setProgress(0);
             store.setErrorMessage(null);
-            try {
-                const [style, lyricsRes] = await Promise.all([
-                    api.suggestStyle({prompt: store.prompt.trim()}).catch(() => null),
-                    store.instrumental ? Promise.resolve(null) : api.generateLyrics({
-                        prompt: store.prompt.trim(),
-                        language: store.language,
-                        duration: store.duration,
-                    }).catch(() => null),
-                ]);
 
+            let style: import("../types").StyleSuggestion | null = null;
+            let lyricsText: string | null = null;
+
+            // Step 1: Get style suggestions first so we can pass genre/mood to lyrics
+            try {
+                style = await api.suggestStyle({prompt: store.prompt.trim()});
                 if (style) {
                     store.applyAiSuggestions({
                         genres: style.genres?.length ? style.genres : undefined,
@@ -281,28 +374,48 @@ export default function CreatePage() {
                         title: style.title_suggestion || undefined,
                     });
                 }
-
-                if (lyricsRes) {
-                    store.setLyrics(lyricsRes.lyrics);
-                }
-
-                if (lyricsRes?.lyrics && !style?.title_suggestion) {
-                    try {
-                        const titleRes = await api.generateTitle({
-                            lyrics: lyricsRes.lyrics,
-                            genre: style?.genres?.[0],
-                            mood: style?.moods?.[0],
-                        });
-                        store.setTitle(titleRes.title);
-                    } catch {
-                        // Title generation is optional
-                    }
-                }
             } catch {
-                // Smart fill failed, proceed with prompt only
-            } finally {
-                smartFillingRef.current = false;
+                // Style suggestion failed, continue without it
             }
+
+            // Step 2: Generate lyrics WITH the suggested genre/mood context
+            if (!store.instrumental) {
+                try {
+                    const genre = style?.genres?.join(", ");
+                    const mood = style?.moods?.join(", ");
+                    const lyricsRes = await api.generateLyrics({
+                        prompt: store.prompt.trim(),
+                        genre: genre,
+                        mood: mood,
+                        language: store.language,
+                        duration: store.duration,
+                    });
+                    if (lyricsRes?.lyrics) {
+                        lyricsText = lyricsRes.lyrics;
+                        store.setLyrics(lyricsText);
+                        store.setLyricsAiGenerated(true);
+                    }
+                } catch {
+                    // Lyrics generation failed, proceed without lyrics
+                }
+            }
+
+            // Step 3: Generate title if no title from style suggestions
+            if (!style?.title_suggestion) {
+                try {
+                    const titleRes = await api.generateTitle({
+                        prompt: store.prompt.trim(),
+                        lyrics: lyricsText || undefined,
+                        genre: style?.genres?.[0],
+                        mood: style?.moods?.[0],
+                    });
+                    store.setTitle(titleRes.title);
+                } catch {
+                    // Title generation is optional
+                }
+            }
+
+            smartFillingRef.current = false;
         } else {
             store.setGenerationStatus("pending");
             store.setProgress(0);
@@ -311,7 +424,9 @@ export default function CreatePage() {
 
         try {
             const currentStore = useCreateStore.getState();
-            const res = await api.generateMusic({
+            // If no lyrics provided and not explicitly instrumental, force instrumental
+            const effectiveInstrumental = currentStore.instrumental || !currentStore.lyrics?.trim();
+            const reqFields = {
                 prompt: currentStore.prompt.trim(),
                 lyrics: currentStore.lyrics || undefined,
                 genre: currentStore.selectedGenres.join(", ") || undefined,
@@ -322,8 +437,25 @@ export default function CreatePage() {
                 musical_key: currentStore.musicalKey || undefined,
                 instruments: currentStore.instruments.length > 0 ? currentStore.instruments : undefined,
                 language: currentStore.language,
-                instrumental: currentStore.instrumental,
-            });
+                instrumental: effectiveInstrumental,
+                // Signal that lyrics were AI-generated so backend skips format_lyrics
+                generate_lyrics: currentStore.lyricsAiGenerated,
+                task_type: currentStore.taskType as TaskType,
+                audio_cover_strength: currentStore.audioCoverStrength,
+                cover_noise_strength: currentStore.coverNoiseStrength,
+                repainting_start: currentStore.repaintingStart,
+                repainting_end: currentStore.repaintingEnd || undefined,
+            };
+
+            // Use multipart endpoint when audio files are present
+            const hasAudioFiles = currentStore.referenceAudioFile || currentStore.srcAudioFile;
+            const res = hasAudioFiles
+                ? await api.generateMusicWithAudio({
+                    formFields: reqFields,
+                    referenceAudio: currentStore.referenceAudioFile || undefined,
+                    srcAudio: currentStore.srcAudioFile || undefined,
+                })
+                : await api.generateMusic(reqFields);
             store.setCurrentTaskId(res.task_id);
             store.setGenerationStatus("processing");
             pollTask(res.task_id);
@@ -543,22 +675,24 @@ export default function CreatePage() {
                     {store.mode === "smart" && (
                         <div className="px-5 pb-5 space-y-3">
                             <div className="flex items-center gap-3 flex-wrap">
-                                {/* Instrumental toggle */}
-                                <button
-                                    onClick={() => store.setInstrumental(!store.instrumental)}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
-                                       transition-all cursor-pointer border
-                                       ${store.instrumental
-                                        ? "bg-primary-50 text-primary-700 border-primary-200"
-                                        : "bg-white text-text-secondary border-border hover:border-primary-200 hover:text-text-primary"}`}
-                                >
-                                    {store.instrumental ? (
-                                        <VolumeX className="w-3 h-3"/>
-                                    ) : (
-                                        <Volume2 className="w-3 h-3"/>
-                                    )}
-                                    {store.instrumental ? t("create.instrumental") : t("create.withVocals")}
-                                </button>
+                                {/* Instrumental toggle switch */}
+                                <div className="flex items-center gap-2">
+                                    <Mic className="w-3.5 h-3.5 text-text-tertiary"/>
+                                    <span className={`text-[11px] font-medium ${!store.instrumental ? "text-text-primary" : "text-text-tertiary"}`}>
+                                        {t("create.vocals")}
+                                    </span>
+                                    <button
+                                        onClick={() => store.setInstrumental(!store.instrumental)}
+                                        className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${store.instrumental ? "bg-primary-500" : "bg-gray-300"}`}
+                                        aria-label={store.instrumental ? t("create.instrumental") : t("create.vocals")}
+                                    >
+                                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${store.instrumental ? "translate-x-5" : ""}`}/>
+                                    </button>
+                                    <span className={`text-[11px] font-medium ${store.instrumental ? "text-text-primary" : "text-text-tertiary"}`}>
+                                        {t("create.instrumental")}
+                                    </span>
+                                    <VolumeX className="w-3.5 h-3.5 text-text-tertiary"/>
+                                </div>
 
                                 {/* Language selector (only when vocals) */}
                                 {!store.instrumental && (
@@ -621,6 +755,52 @@ export default function CreatePage() {
                 )}
 
                 {/* ================================================================
+            SECTION: Style Reference (Smart mode - text only)
+           ================================================================ */}
+                {store.mode === "smart" && (
+                    <motion.div
+                        variants={sectionVariants}
+                        initial="hidden"
+                        animate="visible"
+                        transition={{delay: 0.11, duration: 0.35}}
+                        className="bg-white rounded-2xl border border-border shadow-sm p-5"
+                    >
+                        <div className="flex items-center justify-between mb-2.5">
+                            <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
+                                <Paintbrush className="w-4 h-4 text-accent-500"/>
+                                {t("create.styleReference")}
+                            </label>
+                            <button
+                                onClick={handleAnalyzeStyle}
+                                disabled={!store.styleReferenceText.trim() || styleAnalyzing}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium
+                                     text-primary-600 hover:bg-primary-50
+                                     transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed
+                                     border border-transparent hover:border-primary-200"
+                            >
+                                {styleAnalyzing ? (
+                                    <Loader2 className="w-3 h-3 animate-spin"/>
+                                ) : (
+                                    <Wand2 className="w-3 h-3"/>
+                                )}
+                                {styleAnalyzing ? t("create.analyzingStyle") : t("create.analyzeStyle")}
+                            </button>
+                        </div>
+                        <textarea
+                            value={store.styleReferenceText}
+                            onChange={(e) => store.setStyleReferenceText(e.target.value)}
+                            placeholder={t("create.styleReferencePlaceholder")}
+                            rows={2}
+                            className="w-full px-4 py-2.5 rounded-xl border border-border
+                                 bg-surface-secondary text-sm text-text-primary leading-relaxed
+                                 placeholder:text-text-tertiary/60 focus:outline-none
+                                 focus:ring-2 focus:ring-primary-200
+                                 focus:border-primary-300 resize-none transition-all"
+                        />
+                    </motion.div>
+                )}
+
+                {/* ================================================================
             SECTION: Title (Custom mode only)
            ================================================================ */}
                 {store.mode === "custom" && (
@@ -674,21 +854,23 @@ export default function CreatePage() {
                                 {t("create.lyrics")}
                             </label>
                             <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => store.setInstrumental(!store.instrumental)}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
-                               transition-all cursor-pointer border
-                               ${store.instrumental
-                                        ? "bg-primary-50 text-primary-700 border-primary-200"
-                                        : "bg-white text-text-secondary border-border hover:border-primary-200 hover:text-text-primary"}`}
-                                >
-                                    {store.instrumental ? (
-                                        <VolumeX className="w-3 h-3"/>
-                                    ) : (
-                                        <Volume2 className="w-3 h-3"/>
-                                    )}
-                                    {store.instrumental ? t("create.instrumental") : t("create.withVocals")}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <Mic className="w-3.5 h-3.5 text-text-tertiary"/>
+                                    <span className={`text-[11px] font-medium ${!store.instrumental ? "text-text-primary" : "text-text-tertiary"}`}>
+                                        {t("create.vocals")}
+                                    </span>
+                                    <button
+                                        onClick={() => store.setInstrumental(!store.instrumental)}
+                                        className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${store.instrumental ? "bg-primary-500" : "bg-gray-300"}`}
+                                        aria-label={store.instrumental ? t("create.instrumental") : t("create.vocals")}
+                                    >
+                                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${store.instrumental ? "translate-x-5" : ""}`}/>
+                                    </button>
+                                    <span className={`text-[11px] font-medium ${store.instrumental ? "text-text-primary" : "text-text-tertiary"}`}>
+                                        {t("create.instrumental")}
+                                    </span>
+                                    <VolumeX className="w-3.5 h-3.5 text-text-tertiary"/>
+                                </div>
                                 <AiSuggestBtn
                                     field="lyrics"
                                     loading={lyricsLoading}
@@ -728,8 +910,8 @@ export default function CreatePage() {
                                 {/* Lyrics textarea */}
                                 <textarea
                                     ref={lyricsRef}
-                                    value={store.lyrics}
-                                    onChange={(e) => store.setLyrics(e.target.value)}
+                                    value={store.lyricsAiGenerated ? lrcToPlain(store.lyrics) : store.lyrics}
+                                    onChange={(e) => { store.setLyrics(e.target.value); store.setLyricsAiGenerated(false); }}
                                     placeholder={t("create.lyricsPlaceholder")}
                                     rows={10}
                                     className="w-full px-4 py-3 rounded-xl border border-border
@@ -753,6 +935,197 @@ export default function CreatePage() {
                                 </div>
                             </div>
                         )}
+                    </motion.div>
+                )}
+
+                {/* ================================================================
+            SECTION: Style Reference - Audio (Custom mode only)
+           ================================================================ */}
+                {store.mode === "custom" && (
+                    <motion.div
+                        variants={sectionVariants}
+                        initial="hidden"
+                        animate="visible"
+                        transition={{delay: 0.13, duration: 0.35}}
+                        className="bg-white rounded-2xl border border-border shadow-sm p-5 space-y-4"
+                    >
+                        <label className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
+                            <Paintbrush className="w-4 h-4 text-accent-500"/>
+                            {t("create.styleReference")}
+                        </label>
+
+                        {/* Task mode selector */}
+                        <div>
+                            <p className="text-[11px] font-medium text-text-tertiary mb-2">{t("create.taskType")}</p>
+                            <div className="flex gap-2">
+                                {(["text2music", "cover", "repaint"] as TaskType[]).map((mode) => (
+                                    <button
+                                        key={mode}
+                                        onClick={() => store.setTaskType(mode)}
+                                        className={`flex-1 py-2 px-3 rounded-xl text-[12px] font-medium transition-all cursor-pointer border
+                                            ${store.taskType === mode
+                                            ? "bg-primary-50 text-primary-700 border-primary-300 shadow-sm"
+                                            : "bg-surface-secondary text-text-secondary border-border hover:border-primary-200"
+                                        }`}
+                                    >
+                                        <div className="text-center">
+                                            <span className="block">{t(`create.${mode}`)}</span>
+                                            <span className="text-[10px] opacity-60">{t(`create.${mode}Desc`)}</span>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Reference audio upload (all modes) */}
+                        <div>
+                            <p className="text-[11px] font-medium text-text-tertiary mb-1.5">{t("create.referenceAudio")}</p>
+                            <p className="text-[10px] text-text-tertiary/60 mb-2">{t("create.referenceAudioHint")}</p>
+                            <input
+                                ref={referenceAudioInputRef}
+                                type="file"
+                                accept=".mp3,.wav,.flac,.ogg,.m4a,.aac"
+                                className="hidden"
+                                onChange={(e) => store.setReferenceAudioFile(e.target.files?.[0] || null)}
+                            />
+                            {store.referenceAudioFile ? (
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary-50 border border-primary-200">
+                                    <Music className="w-4 h-4 text-primary-500 flex-shrink-0"/>
+                                    <span className="text-[12px] text-primary-700 truncate flex-1">{store.referenceAudioFile.name}</span>
+                                    <button
+                                        onClick={() => { store.setReferenceAudioFile(null); if (referenceAudioInputRef.current) referenceAudioInputRef.current.value = ""; }}
+                                        className="p-0.5 hover:bg-primary-100 rounded cursor-pointer"
+                                    >
+                                        <X className="w-3.5 h-3.5 text-primary-500"/>
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => referenceAudioInputRef.current?.click()}
+                                    className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-dashed
+                                             border-border hover:border-primary-300 bg-surface-secondary
+                                             text-[12px] text-text-tertiary hover:text-primary-600
+                                             transition-all cursor-pointer"
+                                >
+                                    <Upload className="w-4 h-4"/>
+                                    {t("create.dropAudioHere")}
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Source audio upload (cover/repaint modes only) */}
+                        {(store.taskType === "cover" || store.taskType === "repaint") && (
+                            <div>
+                                <p className="text-[11px] font-medium text-text-tertiary mb-1.5">{t("create.srcAudio")}</p>
+                                <p className="text-[10px] text-text-tertiary/60 mb-2">{t("create.srcAudioHint")}</p>
+                                <input
+                                    ref={srcAudioInputRef}
+                                    type="file"
+                                    accept=".mp3,.wav,.flac,.ogg,.m4a,.aac"
+                                    className="hidden"
+                                    onChange={(e) => store.setSrcAudioFile(e.target.files?.[0] || null)}
+                                />
+                                {store.srcAudioFile ? (
+                                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary-50 border border-primary-200">
+                                        <Music className="w-4 h-4 text-primary-500 flex-shrink-0"/>
+                                        <span className="text-[12px] text-primary-700 truncate flex-1">{store.srcAudioFile.name}</span>
+                                        <button
+                                            onClick={() => { store.setSrcAudioFile(null); if (srcAudioInputRef.current) srcAudioInputRef.current.value = ""; }}
+                                            className="p-0.5 hover:bg-primary-100 rounded cursor-pointer"
+                                        >
+                                            <X className="w-3.5 h-3.5 text-primary-500"/>
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => srcAudioInputRef.current?.click()}
+                                        className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-dashed
+                                                 border-border hover:border-primary-300 bg-surface-secondary
+                                                 text-[12px] text-text-tertiary hover:text-primary-600
+                                                 transition-all cursor-pointer"
+                                    >
+                                        <Upload className="w-4 h-4"/>
+                                        {t("create.dropAudioHere")}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Cover strength slider (cover mode only) */}
+                        {store.taskType === "cover" && (
+                            <div className="space-y-3">
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <p className="text-[11px] font-medium text-text-tertiary">{t("create.coverStrength")}</p>
+                                        <span className="text-[11px] font-bold text-text-primary tabular-nums">
+                                            {Math.round(store.audioCoverStrength * 100)}%
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        step={5}
+                                        value={Math.round(store.audioCoverStrength * 100)}
+                                        onChange={(e) => store.setAudioCoverStrength(Number(e.target.value) / 100)}
+                                        className="w-full accent-primary-600 cursor-pointer"
+                                    />
+                                </div>
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <p className="text-[11px] font-medium text-text-tertiary">{t("create.coverNoise")}</p>
+                                        <span className="text-[11px] font-bold text-text-primary tabular-nums">
+                                            {Math.round(store.coverNoiseStrength * 100)}%
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        step={5}
+                                        value={Math.round(store.coverNoiseStrength * 100)}
+                                        onChange={(e) => store.setCoverNoiseStrength(Number(e.target.value) / 100)}
+                                        className="w-full accent-primary-600 cursor-pointer"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Repaint time range (repaint mode only) */}
+                        {store.taskType === "repaint" && (
+                            <div>
+                                <p className="text-[11px] font-medium text-text-tertiary mb-2">{t("create.repaintRange")}</p>
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-1">
+                                        <label className="text-[10px] text-text-tertiary">{t("create.repaintStart")}</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            step={1}
+                                            value={store.repaintingStart}
+                                            onChange={(e) => store.setRepaintingStart(Number(e.target.value))}
+                                            className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-surface-secondary
+                                                     text-[12px] text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-200"
+                                        />
+                                    </div>
+                                    <span className="text-text-tertiary mt-4">—</span>
+                                    <div className="flex-1">
+                                        <label className="text-[10px] text-text-tertiary">{t("create.repaintEnd")}</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            step={1}
+                                            value={store.repaintingEnd || ""}
+                                            onChange={(e) => store.setRepaintingEnd(Number(e.target.value) || 0)}
+                                            className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-surface-secondary
+                                                     text-[12px] text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-200"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <p className="text-[10px] text-text-tertiary/60">{t("create.supportedFormats")}</p>
                     </motion.div>
                 )}
 
@@ -813,7 +1186,7 @@ export default function CreatePage() {
                 )}
 
                 {/* ================================================================
-            SECTION: Sound -- Duration, Tempo, Key, Instruments (Custom mode only)
+            SECTION: Sound -- Duration, Key, Instruments (Custom mode only)
            ================================================================ */}
                 {store.mode === "custom" && (
                     <motion.div
@@ -823,10 +1196,8 @@ export default function CreatePage() {
                         transition={{delay: 0.17, duration: 0.35}}
                         className="bg-white rounded-2xl border border-border shadow-sm p-5 space-y-5"
                     >
-                        {/* Duration & Tempo side by side */}
-                        <div className="grid grid-cols-2 gap-5">
-                            {/* Duration */}
-                            <div>
+                        {/* Duration -- controls track length (instrumental) or lyrics length (vocal) */}
+                        <div>
                                 <label
                                     className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5 mb-3">
                                     <Clock className="w-4 h-4 text-primary-500"/>
@@ -852,42 +1223,6 @@ export default function CreatePage() {
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Tempo */}
-                            <div>
-                                <div className="flex items-center justify-between mb-3">
-                                    <label
-                                        className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
-                                        <Gauge className="w-4 h-4 text-primary-500"/>
-                                        {t("create.tempo")}
-                                    </label>
-                                    <AiSuggestBtn field="tempo" loading={!!store.aiSuggesting["tempo"]}
-                                                  onClick={() => handleSuggestStyle("tempo")}/>
-                                </div>
-                                <div className="bg-surface-secondary rounded-xl p-3 border border-border-light">
-                                    <div className="text-center mb-2">
-                  <span className="text-lg font-bold text-text-primary tabular-nums">
-                    {store.tempo}
-                  </span>
-                                        <span className="text-[11px] text-text-tertiary ml-1">
-                    {t("create.bpm")} ({t(tempoLabelKey(store.tempo))})
-                  </span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min={60}
-                                        max={180}
-                                        step={1}
-                                        value={store.tempo}
-                                        onChange={(e) => store.setTempo(Number(e.target.value))}
-                                        className="w-full accent-primary-600 cursor-pointer"
-                                    />
-                                    <div className="flex justify-between text-[10px] text-text-tertiary mt-1">
-                                        <span>60</span><span>120</span><span>180</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
 
                         {/* Divider */}
                         <div className="border-t border-border-light"/>
@@ -932,6 +1267,37 @@ export default function CreatePage() {
                                 placeholder={t("create.addInstrument", "Add instrument...")}
                             />
                         </div>
+                    </motion.div>
+                )}
+
+                {/* Global AI Polish button (Custom mode only) */}
+                {store.mode === "custom" && (
+                    <motion.div
+                        variants={sectionVariants}
+                        initial="hidden"
+                        animate="visible"
+                        transition={{delay: 0.19, duration: 0.35}}
+                        className="pt-1"
+                    >
+                        <button
+                            onClick={handleGlobalPolish}
+                            disabled={!store.prompt.trim() || globalPolishing || isGenerating}
+                            className="w-full flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl text-[14px] font-semibold
+                                   text-primary-600 bg-primary-50 border-2 border-primary-200
+                                   hover:bg-primary-100 hover:border-primary-300
+                                   disabled:opacity-40 disabled:cursor-not-allowed
+                                   transition-all cursor-pointer active:scale-[0.98]"
+                        >
+                            {globalPolishing ? (
+                                <Loader2 className="w-4.5 h-4.5 animate-spin"/>
+                            ) : (
+                                <Wand2 className="w-4.5 h-4.5"/>
+                            )}
+                            {globalPolishing ? t("create.globalPolishing") : t("create.globalPolish")}
+                        </button>
+                        <p className="text-center text-[11px] text-text-tertiary mt-1.5">
+                            {t("create.globalPolishHint")}
+                        </p>
                     </motion.div>
                 )}
 

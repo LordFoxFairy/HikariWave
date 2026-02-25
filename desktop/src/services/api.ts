@@ -15,6 +15,7 @@ import type {
     MusicProviderConfig,
     MusicProviderListResponse,
     RemixRequest,
+    StyleReferenceResult,
     StyleSuggestion,
     StyleSuggestRequest,
     TitleGenerateRequest,
@@ -55,6 +56,53 @@ export const api = {
         return request<{ task_id: string; status: string }>("/generate/music", {
             method: "POST",
             body: JSON.stringify(data),
+        });
+    },
+
+    generateMusicWithAudio(data: {
+        formFields: GenerateMusicRequest;
+        referenceAudio?: File;
+        srcAudio?: File;
+    }) {
+        const fd = new FormData();
+        const f = data.formFields;
+        fd.append("prompt", f.prompt);
+        if (f.lyrics) fd.append("lyrics", f.lyrics);
+        if (f.title) fd.append("title", f.title);
+        if (f.genre) fd.append("genre", f.genre);
+        if (f.mood) fd.append("mood", f.mood);
+        if (f.duration !== undefined) fd.append("duration", String(f.duration));
+        if (f.tempo !== undefined) fd.append("tempo", String(f.tempo));
+        if (f.musical_key) fd.append("musical_key", f.musical_key);
+        if (f.instruments?.length) fd.append("instruments", JSON.stringify(f.instruments));
+        if (f.language) fd.append("language", f.language);
+        if (f.instrumental !== undefined) fd.append("instrumental", String(f.instrumental));
+        if (f.seed !== undefined) fd.append("seed", String(f.seed));
+        if (f.enhance_prompt !== undefined) fd.append("enhance_prompt", String(f.enhance_prompt));
+        if (f.generate_lyrics !== undefined) fd.append("generate_lyrics", String(f.generate_lyrics));
+        if (f.generate_cover !== undefined) fd.append("generate_cover", String(f.generate_cover));
+        if (f.task_type) fd.append("task_type", f.task_type);
+        if (f.audio_cover_strength !== undefined) fd.append("audio_cover_strength", String(f.audio_cover_strength));
+        if (f.cover_noise_strength !== undefined) fd.append("cover_noise_strength", String(f.cover_noise_strength));
+        if (f.repainting_start !== undefined) fd.append("repainting_start", String(f.repainting_start));
+        if (f.repainting_end !== undefined) fd.append("repainting_end", String(f.repainting_end));
+        if (data.referenceAudio) fd.append("reference_audio", data.referenceAudio);
+        if (data.srcAudio) fd.append("src_audio", data.srcAudio);
+
+        const url = `${baseUrl}/generate/music-with-audio`;
+        return fetch(url, {method: "POST", body: fd}).then(async (res) => {
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`API error ${res.status}: ${text}`);
+            }
+            return res.json() as Promise<{ task_id: string; status: string }>;
+        });
+    },
+
+    analyzeStyleReference(description: string) {
+        return request<StyleReferenceResult>("/generate/analyze-style", {
+            method: "POST",
+            body: JSON.stringify({description}),
         });
     },
 

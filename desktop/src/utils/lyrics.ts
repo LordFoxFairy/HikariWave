@@ -65,6 +65,34 @@ export function parseLRC(lrc: string): TimedLyricLine[] {
 }
 
 /**
+ * Strip LRC timestamps to produce plain-text lyrics.
+ * Inserts blank lines at large time gaps (>6s) to visually separate sections.
+ */
+export function lrcToPlain(lrc: string): string {
+    const result: string[] = [];
+    let prevTime = 0;
+    for (const raw of lrc.split("\n")) {
+        const match = raw.match(/^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)$/);
+        if (match) {
+            const time = parseInt(match[1], 10) * 60 + parseInt(match[2], 10)
+                + (match[3].length === 2 ? parseInt(match[3], 10) * 10 : parseInt(match[3], 10)) / 1000;
+            const text = match[4].trim();
+            if (!text) continue;
+            // Insert blank line at section boundaries (>6s gap)
+            if (result.length > 0 && (time - prevTime) > 6) {
+                result.push("");
+            }
+            result.push(text);
+            prevTime = time;
+        } else {
+            // Pass through non-LRC lines (plain text, section tags, etc.)
+            result.push(raw);
+        }
+    }
+    return result.join("\n");
+}
+
+/**
  * Find the index of the active timed lyric line based on current playback time.
  */
 export function findActiveLRCIndex(lines: TimedLyricLine[], currentTime: number): number {
