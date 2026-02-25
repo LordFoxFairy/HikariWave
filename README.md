@@ -15,6 +15,22 @@
 
 ---
 
+## 界面预览
+
+### 创作页面
+
+精细控制歌词、曲风、情绪、速度、调式、乐器和时长，AI 辅助生成歌词与标题。
+
+![创作页面 - 自定义模式](assets/01.png)
+
+### 音乐库
+
+浏览、搜索、收藏和管理所有 AI 生成的音乐作品，支持网格/列表视图切换。
+
+![音乐库 - 网格视图](assets/02.png)
+
+---
+
 ## 功能特性
 
 - **简单模式** — 一句话描述，AI 自动完成作词、取名、编曲、演唱
@@ -54,7 +70,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/thefoxfairy/HikariWave.git
+git clone https://github.com/LordFoxFairy/HikariWave.git
 cd HikariWave
 
 # 安装 Python 依赖
