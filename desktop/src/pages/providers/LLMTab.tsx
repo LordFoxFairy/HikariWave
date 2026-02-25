@@ -92,6 +92,7 @@ export function LLMTab() {
                 base_url: formData.base_url,
                 api_key: formData.api_key,
                 model: formData.models[0] || "",
+                name: formData.name,
             });
             setTestResult(result);
             if (result.success && result.models.length > 0 && !formModels.trim()) {

@@ -1,6 +1,6 @@
 import {useState} from "react";
 import {useTranslation} from "react-i18next";
-import {GitBranch, Image, Music, Repeat, Shuffle, Star, Trash2,} from "lucide-react";
+import {GitBranch, Image, Music, Play, Repeat, Shuffle, Star, Trash2,} from "lucide-react";
 import {motion} from "framer-motion";
 import type {Generation} from "../../types";
 import {api} from "../../services/api";
@@ -16,6 +16,7 @@ interface ListRowProps {
     onExtend: () => void;
     onRemix: () => void;
     onRegenCover: () => void;
+    onOpenDetail: () => void;
 }
 
 export default function ListRow({
@@ -28,6 +29,7 @@ export default function ListRow({
                                     onExtend,
                                     onRemix,
                                     onRegenCover,
+                                    onOpenDetail,
                                 }: ListRowProps) {
     const {t} = useTranslation();
     const gradient = getGradient(gen.genre);
@@ -46,7 +48,7 @@ export default function ListRow({
             className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors
                   group hover:bg-surface-secondary cursor-pointer
                   ${isCurrentTrack ? "bg-primary-50/50" : ""}`}
-            onClick={gen.status === "completed" ? onPlay : undefined}
+            onClick={gen.status === "completed" ? onOpenDetail : undefined}
         >
             {/* Thumbnail */}
             <div
@@ -81,6 +83,15 @@ export default function ListRow({
                             ))}
                         </div>
                     </div>
+                )}
+                {gen.status === "completed" && !isCurrentTrack && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onPlay(); }}
+                        className="absolute inset-0 flex items-center justify-center
+                                 bg-black/0 hover:bg-black/30 transition-colors rounded-lg cursor-pointer"
+                    >
+                        <Play className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity"/>
+                    </button>
                 )}
             </div>
 

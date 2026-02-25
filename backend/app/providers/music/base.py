@@ -35,6 +35,7 @@ class MusicGenerationRequest(BaseModel):
     instruments: list[str] | None = None
     instrumental: bool = False
     seed: int | None = None
+    language: str = Field(default="en", description="Vocal language code")
 
 
 class MusicGenerationResponse(BaseModel):
@@ -44,6 +45,7 @@ class MusicGenerationResponse(BaseModel):
     sample_rate: int
     format: str
     metadata: dict = Field(default_factory=dict)
+    lrc_lyrics: str | None = None
 
 
 class BaseMusicProvider(ABC):

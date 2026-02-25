@@ -19,6 +19,7 @@ import {AnimatePresence, motion} from "framer-motion";
 import {useTranslation} from "react-i18next";
 import WaveSurfer from "wavesurfer.js";
 import {usePlayerStore} from "../stores/playerStore";
+import {useAppStore} from "../stores/appStore";
 import {api} from "../services/api";
 import LyricsPanel from "./LyricsPanel";
 import {formatSeconds, getGradient} from "../utils/format";
@@ -92,6 +93,8 @@ export default function Player() {
         playNext,
         playPrevious,
     } = usePlayerStore();
+
+    const openDetail = useAppStore((s) => s.openDetail);
 
     // Close format menu on outside click
     useEffect(() => {
@@ -190,7 +193,7 @@ export default function Player() {
     const liked = !!currentTrack.is_liked;
     const gradient = getGradient(currentTrack.genre);
     const hasCover = !!currentTrack.cover_art_path;
-    const hasLyrics = !!currentTrack.lyrics;
+    const hasLyrics = !!currentTrack.lyrics || !!currentTrack.lrc_lyrics;
     const displayTitle = currentTrack.title || currentTrack.prompt.slice(0, 40);
 
     return (
@@ -223,6 +226,7 @@ export default function Player() {
                         >
                             <LyricsPanel
                                 lyrics={currentTrack.lyrics}
+                                lrcLyrics={currentTrack.lrc_lyrics}
                                 currentTime={currentTime}
                                 duration={duration}
                             />
@@ -232,31 +236,37 @@ export default function Player() {
 
                 {/* Player controls bar */}
                 <div className="h-[72px] flex items-center px-4 gap-3">
-                    {/* Cover art / genre thumbnail */}
-                    {hasCover ? (
-                        <img
-                            src={api.getCoverArtUrl(currentTrack.cover_art_path!)}
-                            alt="Cover"
-                            className="w-11 h-11 rounded-lg object-cover flex-shrink-0 shadow-sm"
-                        />
-                    ) : (
-                        <div
-                            className={`w-11 h-11 rounded-lg bg-gradient-to-br ${gradient}
-                            flex items-center justify-center flex-shrink-0
-                            shadow-sm`}
-                        >
-                            <Music className="w-5 h-5 text-white/80"/>
-                        </div>
-                    )}
+                    {/* Cover art + track info (clickable) */}
+                    <div
+                        className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => currentTrack && openDetail(currentTrack.id)}
+                    >
+                        {/* Cover art / genre thumbnail */}
+                        {hasCover ? (
+                            <img
+                                src={api.getCoverArtUrl(currentTrack.cover_art_path!)}
+                                alt="Cover"
+                                className="w-11 h-11 rounded-lg object-cover flex-shrink-0 shadow-sm"
+                            />
+                        ) : (
+                            <div
+                                className={`w-11 h-11 rounded-lg bg-gradient-to-br ${gradient}
+                                flex items-center justify-center flex-shrink-0
+                                shadow-sm`}
+                            >
+                                <Music className="w-5 h-5 text-white/80"/>
+                            </div>
+                        )}
 
-                    {/* Track info */}
-                    <div className="w-40 flex-shrink-0 min-w-0">
-                        <p className="text-[13px] font-semibold text-text-primary truncate leading-tight">
-                            {displayTitle}
-                        </p>
-                        <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
-                            {currentTrack.genre || t("player.generated")}
-                        </p>
+                        {/* Track info */}
+                        <div className="w-40 flex-shrink-0 min-w-0">
+                            <p className="text-[13px] font-semibold text-text-primary truncate leading-tight">
+                                {displayTitle}
+                            </p>
+                            <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
+                                {currentTrack.genre || t("player.generated")}
+                            </p>
+                        </div>
                     </div>
 
                     {/* Star */}

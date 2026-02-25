@@ -11,6 +11,7 @@ export interface Generation {
     prompt: string;
     enhanced_prompt?: string;
     lyrics?: string;
+    lrc_lyrics?: string;
     genre?: string;
     mood?: string;
     duration: number;
@@ -87,6 +88,7 @@ export interface GenerateLyricsRequest {
     genre?: string;
     mood?: string;
     language?: string;
+    duration?: number;
 }
 
 export interface GenerateLyricsResponse {
@@ -124,7 +126,8 @@ export type PageId =
     | "create"
     | "library"
     | "providers"
-    | "settings";
+    | "settings"
+    | "detail";
 
 // ---- LLM config management types ----
 
@@ -148,6 +151,7 @@ export interface LLMTestRequest {
     base_url: string;
     api_key?: string;
     model?: string;
+    name?: string;
 }
 
 export interface LLMTestResponse {

@@ -82,7 +82,7 @@ class MusicGenerationRequest(BaseModel):
     title: str | None = None
     genre: str | None = None
     mood: str | None = None
-    duration: float = Field(default=30.0, ge=1.0, le=300.0)
+    duration: float = Field(default=240.0, ge=1.0, le=600.0)
     tempo: int | None = Field(default=None, ge=40, le=240)
     musical_key: str | None = None
     instruments: list[str] | None = None
@@ -111,6 +111,7 @@ class LyricsGenerationRequest(BaseModel):
     genre: str | None = None
     mood: str | None = None
     language: str = "en"
+    duration: float = Field(default=240.0, description="Target song duration in seconds")
 
 
 class PromptEnhancementRequest(BaseModel):
@@ -146,6 +147,7 @@ class GenerationResponse(BaseModel):
     prompt: str
     enhanced_prompt: str | None = None
     lyrics: str | None = None
+    lrc_lyrics: str | None = None
     genre: str | None = None
     mood: str | None = None
     duration: float

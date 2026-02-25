@@ -5,6 +5,7 @@ from backend.app.api.endpoints import (
     covers,
     generate,
     history,
+    lyrics,
     marketplace,
     providers,
     tasks,
@@ -19,6 +20,7 @@ api_router.include_router(tasks.router)
 api_router.include_router(history.router)
 api_router.include_router(providers.router)
 api_router.include_router(audio.router)
+api_router.include_router(lyrics.router)
 api_router.include_router(covers.router)
 api_router.include_router(marketplace.router)
 api_router.include_router(ws_router)

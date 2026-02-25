@@ -16,6 +16,7 @@ interface GridCardProps {
     onExtend: () => void;
     onRemix: () => void;
     onRegenCover: () => void;
+    onOpenDetail: () => void;
 }
 
 export default function GridCard({
@@ -28,6 +29,7 @@ export default function GridCard({
                                      onExtend,
                                      onRemix,
                                      onRegenCover,
+                                     onOpenDetail,
                                  }: GridCardProps) {
     const {t} = useTranslation();
     const gradient = getGradient(gen.genre);
@@ -149,7 +151,7 @@ export default function GridCard({
             </div>
 
             {/* Body */}
-            <div className="p-4">
+            <div className="p-4 cursor-pointer" onClick={onOpenDetail}>
                 <p className="text-[13px] font-semibold text-text-primary truncate mb-1 leading-tight">
                     {displayTitle}
                 </p>

@@ -27,6 +27,7 @@ class LLMTestRequest(BaseModel):
     base_url: str
     api_key: str = ""
     model: str = ""
+    name: str = ""  # existing provider name, used to resolve masked api_key
 
 
 class LLMTestResponse(BaseModel):

@@ -96,7 +96,8 @@ async def generate_lyrics(
 ):
     try:
         lyrics = await llm.generate_lyrics(
-            req.prompt, genre=req.genre, mood=req.mood, language=req.language
+            req.prompt, genre=req.genre, mood=req.mood, language=req.language,
+            duration=req.duration,
         )
         # Try to include style suggestions alongside lyrics
         suggestions = None

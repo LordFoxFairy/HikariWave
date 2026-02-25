@@ -124,12 +124,26 @@ export const api = {
         return request<void>(`/generations/${id}`, {method: "DELETE"});
     },
 
+    getGeneration(id: number) {
+        return request<Generation>(`/generations/${id}`);
+    },
+
     getAudioUrl(audioPath: string) {
         return `${baseUrl}/audio/${encodeURIComponent(audioPath)}`;
     },
 
     getCoverArtUrl(coverPath: string) {
         return `${baseUrl}/covers/${encodeURIComponent(coverPath)}`;
+    },
+
+    getLyricsUrl(audioPath: string) {
+        const stem = audioPath.replace(/\.[^.]+$/, "");
+        return `${baseUrl}/lyrics/${encodeURIComponent(stem + ".txt")}`;
+    },
+
+    getLrcUrl(audioPath: string) {
+        const stem = audioPath.replace(/\.[^.]+$/, "");
+        return `${baseUrl}/lyrics/${encodeURIComponent(stem + ".lrc")}`;
     },
 
     extendSong(data: ExtendRequest) {

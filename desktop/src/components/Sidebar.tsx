@@ -28,12 +28,12 @@ export default function Sidebar() {
             <div className="flex items-center gap-2.5 px-4 h-14
                       border-b border-border flex-shrink-0">
                 <div
-                    className="w-8 h-8 rounded-lg bg-gradient-to-br
+                    className="w-7 h-7 rounded-md bg-gradient-to-br
                       from-primary-500 to-primary-700
                       flex items-center justify-center
                       shadow-sm flex-shrink-0"
                 >
-                    <Music className="w-4 h-4 text-white"/>
+                    <Music className="w-3.5 h-3.5 text-white"/>
                 </div>
                 <AnimatePresence>
                     {!sidebarCollapsed && (
@@ -84,7 +84,7 @@ export default function Sidebar() {
             {/* Navigation */}
             <nav className="flex-1 py-3 px-2 space-y-0.5">
                 {navItems.map(({id, labelKey, icon: Icon}) => {
-                    const active = currentPage === id;
+                    const active = currentPage === id || (id === "library" && currentPage === "detail");
                     const label = t(labelKey);
                     return (
                         <button

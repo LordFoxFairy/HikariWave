@@ -31,6 +31,7 @@ class Generation(Base):
     prompt = Column(String, nullable=False)
     enhanced_prompt = Column(String, nullable=True)
     lyrics = Column(String, nullable=True)
+    lrc_lyrics = Column(String, nullable=True)
     genre = Column(String, nullable=True)
     mood = Column(String, nullable=True)
     duration = Column(Float, default=30.0)

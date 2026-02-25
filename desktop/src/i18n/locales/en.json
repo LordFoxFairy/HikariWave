@@ -232,6 +232,35 @@
     "lossless": "Lossless",
     "compressed": "Compressed"
   },
+  "detail": {
+    "backToLibrary": "Back to Library",
+    "notFound": "Song not found",
+    "tempo": "Tempo",
+    "key": "Key",
+    "instruments": "Instruments",
+    "language": "Language",
+    "duration": "Duration",
+    "createdAt": "Created",
+    "lyrics": "Lyrics",
+    "noLyrics": "No lyrics available",
+    "prompt": "Prompt",
+    "enhancedPrompt": "Enhanced Prompt",
+    "extendedFrom": "Extended from",
+    "remixOf": "Remix of",
+    "viewParent": "View parent",
+    "play": "Play",
+    "pause": "Pause",
+    "like": "Like",
+    "unlike": "Unlike",
+    "extend": "Extend",
+    "remix": "Remix",
+    "download": "Download",
+    "delete": "Delete",
+    "deleteConfirm": "This track will be permanently deleted. This action cannot be undone.",
+    "bpm": "BPM",
+    "instrumental": "Instrumental",
+    "vocal": "Vocal"
+  },
   "confirm": {
     "deleteItem": "Delete item",
     "cannotBeUndone": "This action cannot be undone. Are you sure?",
@@ -315,6 +344,17 @@
       "German": "German",
       "Portuguese": "Portuguese"
     }
+  },
+  "templates": {
+    "title": "Quick Templates",
+    "gufeng": "Ancient Chinese Style",
+    "gufengDesc": "Poetic Chinese folk with guzheng, pipa & flute",
+    "liuxing": "Chinese Pop Ballad",
+    "liuxingDesc": "Warm pop love song with piano & strings",
+    "duichang": "Male & Female Duet",
+    "duichangDesc": "Romantic duet with intertwined vocals",
+    "hechang": "Group Chorus",
+    "hechangDesc": "Energetic multi-voice anthem with orchestra"
   },
   "structureTags": {
     "Intro": "Intro",

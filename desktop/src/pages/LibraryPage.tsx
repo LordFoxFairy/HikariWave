@@ -36,6 +36,7 @@ export default function LibraryPage() {
     const currentTrack = usePlayerStore((s) => s.currentTrack);
     const isPlaying = usePlayerStore((s) => s.isPlaying);
     const setCurrentPage = useAppStore((s) => s.setCurrentPage);
+    const openDetail = useAppStore((s) => s.openDetail);
     const {handleExtend, handleRemix, handleRegenerateCover} = useTrackActions();
     const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     const [showGenreFilter, setShowGenreFilter] = useState(false);
@@ -332,6 +333,7 @@ export default function LibraryPage() {
                                 onExtend={() => handleExtend(gen)}
                                 onRemix={() => handleRemix(gen)}
                                 onRegenCover={() => handleRegenCover(gen)}
+                                onOpenDetail={() => openDetail(gen.id)}
                             />
                         ))}
                     </div>
@@ -361,6 +363,7 @@ export default function LibraryPage() {
                                 onExtend={() => handleExtend(gen)}
                                 onRemix={() => handleRemix(gen)}
                                 onRegenCover={() => handleRegenCover(gen)}
+                                onOpenDetail={() => openDetail(gen.id)}
                             />
                         ))}
                     </div>

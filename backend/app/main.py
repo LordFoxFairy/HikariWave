@@ -1,9 +1,16 @@
+import os
+
+# Migrate deprecated TRANSFORMERS_CACHE to HF_HOME before transformers is imported.
+_tc = os.environ.pop("TRANSFORMERS_CACHE", None)
+if _tc and "HF_HOME" not in os.environ:
+    os.environ["HF_HOME"] = _tc
+
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import update
+from sqlalchemy import inspect, text, update
 
 from backend.app.api.router import api_router
 from backend.app.core.settings import settings
@@ -18,12 +25,39 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _auto_migrate(connection) -> None:
+    """Add any missing columns to existing tables.
+
+    This is a lightweight migration for development — it inspects the DB
+    schema and runs ALTER TABLE for columns defined in the model but
+    missing from the database.
+    """
+    insp = inspect(connection)
+    for table in Base.metadata.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        existing_cols = {c["name"] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.name not in existing_cols:
+                col_type = col.type.compile(dialect=connection.dialect)
+                nullable = "NULL" if col.nullable else "NOT NULL"
+                default = ""
+                if col.default is not None:
+                    default = f" DEFAULT {col.default.arg!r}"
+                sql = f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type} {nullable}{default}"
+                logger.info("Auto-migrate: %s", sql)
+                connection.execute(text(sql))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting HikariWave backend v%s", settings.app_version)
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # Auto-migrate: add missing columns to existing tables
+    async with engine.begin() as conn:
+        await conn.run_sync(_auto_migrate)
     # Mark orphan "processing" generations as failed (server restart)
     async with engine.begin() as conn:
         await conn.execute(

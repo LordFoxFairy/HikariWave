@@ -41,6 +41,7 @@ import {
     STRUCTURE_TAGS,
     tempoLabelKey,
 } from "../constants/musicOptions";
+import {MUSIC_TEMPLATES} from "../constants/templates";
 import {formatSeconds} from "../utils/format";
 import {CustomSelect} from "../components/CustomSelect";
 import {useTaskPolling} from "../hooks/useTaskPolling";
@@ -125,6 +126,19 @@ export default function CreatePage() {
         }
     }, [store.successMessage, store]);
 
+    /* -- Apply a template to the prompt -- */
+    const handleApplyTemplate = useCallback((templateId: string) => {
+        const tpl = MUSIC_TEMPLATES.find(t => t.id === templateId);
+        if (!tpl) return;
+        store.setPrompt(tpl.prompt);
+        store.setLanguage(tpl.language);
+        store.setInstrumental(tpl.instrumental);
+        store.applyAiSuggestions({
+            genres: tpl.genre,
+            moods: tpl.mood,
+        });
+    }, [store]);
+
     /* -- Insert structure tag at cursor in lyrics editor -- */
     const insertStructureTag = useCallback((tag: string) => {
         const el = lyricsRef.current;
@@ -196,6 +210,7 @@ export default function CreatePage() {
                 genre: store.selectedGenres[0],
                 mood: store.selectedMoods[0],
                 language: store.language,
+                duration: store.duration,
             });
             store.setLyrics(res.lyrics);
             if (res.suggestions) {
@@ -252,6 +267,7 @@ export default function CreatePage() {
                     store.instrumental ? Promise.resolve(null) : api.generateLyrics({
                         prompt: store.prompt.trim(),
                         language: store.language,
+                        duration: store.duration,
                     }).catch(() => null),
                 ]);
 
@@ -302,8 +318,8 @@ export default function CreatePage() {
                 mood: currentStore.selectedMoods.join(", ") || undefined,
                 duration: currentStore.duration,
                 title: currentStore.title || undefined,
-                tempo: currentStore.tempo,
-                musical_key: currentStore.musicalKey,
+                tempo: currentStore.tempo || undefined,
+                musical_key: currentStore.musicalKey || undefined,
                 instruments: currentStore.instruments.length > 0 ? currentStore.instruments : undefined,
                 language: currentStore.language,
                 instrumental: currentStore.instrumental,
@@ -561,6 +577,48 @@ export default function CreatePage() {
                         </div>
                     )}
                 </motion.div>
+
+                {/* ================================================================
+            SECTION: Template cards (Smart mode only)
+           ================================================================ */}
+                {store.mode === "smart" && (
+                    <motion.div
+                        variants={sectionVariants}
+                        initial="hidden"
+                        animate="visible"
+                        transition={{delay: 0.08, duration: 0.35}}
+                    >
+                        <p className="text-[12px] font-semibold text-text-tertiary mb-2.5 px-1">
+                            {t("templates.title")}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2.5">
+                            {MUSIC_TEMPLATES.map((tpl) => (
+                                <button
+                                    key={tpl.id}
+                                    onClick={() => handleApplyTemplate(tpl.id)}
+                                    className="group relative bg-white rounded-xl border border-border shadow-sm
+                                           p-3.5 text-left transition-all cursor-pointer
+                                           hover:border-primary-300 hover:shadow-md active:scale-[0.98]"
+                                >
+                                    <div className="flex items-start gap-2.5">
+                                        <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${tpl.gradient}
+                                                    flex items-center justify-center flex-shrink-0 text-lg`}>
+                                            {tpl.icon}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-[13px] font-semibold text-text-primary truncate">
+                                                {t(tpl.nameKey)}
+                                            </p>
+                                            <p className="text-[11px] text-text-tertiary mt-0.5 line-clamp-2 leading-relaxed">
+                                                {t(tpl.descKey)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
 
                 {/* ================================================================
             SECTION: Title (Custom mode only)

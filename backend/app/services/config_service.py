@@ -51,7 +51,15 @@ class ProviderConfigService:
         providers: list[dict],
         router: dict[str, str],
     ) -> dict:
-        provider_manager.update_llm_config(providers, router)
+        # Resolve masked API keys before updating in-memory providers
+        resolved_providers = []
+        for p in providers:
+            rp = dict(p)
+            if self._is_masked_key(rp.get("api_key", "")):
+                rp["api_key"] = self._resolve_api_key(rp["api_key"], rp.get("name", ""))
+            resolved_providers.append(rp)
+
+        provider_manager.update_llm_config(resolved_providers, router)
 
         raw_config = await asyncio.to_thread(load_raw_yaml_config)
         raw_config.setdefault("llm", {})
@@ -63,23 +71,23 @@ class ProviderConfigService:
             orig_by_name[orig.get("name", "")] = orig
 
         yaml_providers = []
-        for p in providers:
-            entry: dict = {"name": p["name"]}
-            ptype = p.get("type", p["name"])
-            if ptype != p["name"]:
+        for rp in resolved_providers:
+            entry: dict = {"name": rp["name"]}
+            ptype = rp.get("type", rp["name"])
+            if ptype != rp["name"]:
                 entry["type"] = ptype
-            if p.get("base_url"):
+            if rp.get("base_url"):
                 entry["base_url"] = _preserve_env_ref(
-                    p["base_url"],
-                    orig_by_name.get(p["name"], {}).get("base_url"),
+                    rp["base_url"],
+                    orig_by_name.get(rp["name"], {}).get("base_url"),
                 )
-            if p.get("api_key"):
+            if rp.get("api_key"):
                 entry["api_key"] = _preserve_env_ref(
-                    p["api_key"],
-                    orig_by_name.get(p["name"], {}).get("api_key"),
+                    rp["api_key"],
+                    orig_by_name.get(rp["name"], {}).get("api_key"),
                 )
-            if p.get("models"):
-                entry["models"] = p["models"]
+            if rp.get("models"):
+                entry["models"] = rp["models"]
             yaml_providers.append(entry)
 
         raw_config["llm"]["providers"] = yaml_providers
@@ -88,16 +96,36 @@ class ProviderConfigService:
 
         return provider_manager.get_llm_config()
 
+    @staticmethod
+    def _is_masked_key(key: str) -> bool:
+        """Return True if the key is a masked placeholder (e.g. ``sk-...xxxx``)."""
+        return (bool(key) and key.startswith("sk-...")) or key == "****"
+
+    def _resolve_api_key(self, api_key: str, provider_name: str) -> str:
+        """If the api_key is masked, look up the real key from loaded providers."""
+        if not self._is_masked_key(api_key):
+            return api_key
+        if not provider_name:
+            return api_key
+        provider_obj = provider_manager._llm.providers.get(provider_name)
+        if provider_obj and provider_obj.config.api_key:
+            return provider_obj.config.api_key
+        return api_key
+
     async def test_llm_connection(
         self,
         provider_type: str,
         base_url: str,
         api_key: str,
         model: str,
+        provider_name: str = "",
     ) -> dict:
         """Test an LLM provider connection via init_chat_model."""
         from langchain.chat_models import init_chat_model
         from langchain_core.messages import HumanMessage
+
+        # Resolve masked API keys back to the real value
+        api_key = self._resolve_api_key(api_key, provider_name)
 
         lc_provider = (
             "openai"

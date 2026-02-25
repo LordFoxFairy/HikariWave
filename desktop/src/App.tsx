@@ -8,6 +8,7 @@ import CreatePage from "./pages/CreatePage";
 import LibraryPage from "./pages/LibraryPage";
 import ProvidersPage from "./pages/ProvidersPage";
 import SettingsPage from "./pages/SettingsPage";
+import SongDetailPage from "./pages/SongDetailPage";
 import {useAppStore} from "./stores/appStore";
 import {usePlayerStore} from "./stores/playerStore";
 import {api} from "./services/api";
@@ -148,6 +149,7 @@ function PageRouter() {
             {currentPage === "library" && <LibraryPage/>}
             {currentPage === "providers" && <ProvidersPage/>}
             {currentPage === "settings" && <SettingsPage/>}
+            {currentPage === "detail" && <SongDetailPage/>}
         </div>
     );
 }
@@ -170,6 +172,11 @@ export default function App() {
             }
 
             if (e.key === "Escape") {
+                const appState = useAppStore.getState();
+                if (appState.currentPage === "detail") {
+                    appState.closeDetail();
+                    return;
+                }
                 const {currentTrack, stop} = usePlayerStore.getState();
                 if (currentTrack) {
                     stop();

@@ -75,4 +75,5 @@ async def test_llm_connection(
         base_url=body.base_url,
         api_key=body.api_key,
         model=body.model,
+        provider_name=body.name,
     )

@@ -232,6 +232,35 @@
     "lossless": "无损",
     "compressed": "有压缩"
   },
+  "detail": {
+    "backToLibrary": "返回音乐库",
+    "notFound": "未找到歌曲",
+    "tempo": "速度",
+    "key": "调式",
+    "instruments": "乐器",
+    "language": "语言",
+    "duration": "时长",
+    "createdAt": "创建时间",
+    "lyrics": "歌词",
+    "noLyrics": "暂无歌词",
+    "prompt": "提示词",
+    "enhancedPrompt": "增强提示词",
+    "extendedFrom": "续写自",
+    "remixOf": "混音自",
+    "viewParent": "查看原曲",
+    "play": "播放",
+    "pause": "暂停",
+    "like": "喜欢",
+    "unlike": "取消喜欢",
+    "extend": "续写",
+    "remix": "混音",
+    "download": "下载",
+    "delete": "删除",
+    "deleteConfirm": "该曲目将被永久删除，此操作无法撤销。",
+    "bpm": "BPM",
+    "instrumental": "纯音乐",
+    "vocal": "有人声"
+  },
   "confirm": {
     "deleteItem": "删除项目",
     "cannotBeUndone": "此操作无法撤销，确定要删除吗？",
@@ -315,6 +344,17 @@
       "German": "德文",
       "Portuguese": "葡萄牙文"
     }
+  },
+  "templates": {
+    "title": "快速模板",
+    "gufeng": "古风国风",
+    "gufengDesc": "古筝琵琶竹笛，诗词般的中国风歌曲",
+    "liuxing": "华语流行情歌",
+    "liuxingDesc": "钢琴弦乐伴奏，温暖深情的旋律",
+    "duichang": "男女对唱",
+    "duichangDesc": "男女声交织的浪漫情歌",
+    "hechang": "多人合唱",
+    "hechangDesc": "青春励志，多声部和声磅礴大气"
   },
   "structureTags": {
     "Intro": "前奏",

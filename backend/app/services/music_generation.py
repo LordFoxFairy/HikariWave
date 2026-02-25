@@ -9,7 +9,7 @@ from backend.app.providers.manager import provider_manager
 from backend.app.providers.music.base import BaseMusicProvider
 from backend.app.providers.music.base import MusicGenerationRequest as MusicReq
 from backend.app.repositories.generation import generation_repository
-from backend.app.services.llm_service import llm_service
+from backend.app.services.llm_service import _normalize_section_tags, llm_service
 from backend.app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
@@ -18,25 +18,41 @@ _GENERATION_TIMEOUT = 1800  # 30 minutes
 
 
 def _build_music_prompt(request: MusicReq) -> str:
-    """Compose a rich text prompt from structured request fields."""
+    """Build an ACE-Step caption from structured request fields.
+
+    The caption describes ONLY the sonic character: genre, mood, instruments,
+    vocal style, and texture.  It must NOT include duration, BPM, key, or
+    song structure — those are controlled by dedicated ACE-Step parameters
+    and lyrics section tags respectively.
+    """
     parts: list[str] = []
 
-    if request.prompt:
-        parts.append(request.prompt)
+    # Genre
     if request.genre:
-        parts.append(f"{request.genre} style")
+        parts.append(request.genre)
+
+    # Mood
     if request.mood:
-        parts.append(f"{request.mood} mood")
-    if request.tempo:
-        parts.append(f"{request.tempo} BPM")
-    if request.musical_key:
-        parts.append(f"in the key of {request.musical_key}")
+        parts.append(request.mood)
+
+    # Instruments with natural phrasing
     if request.instruments:
         parts.append(f"featuring {', '.join(request.instruments)}")
+
+    # Vocal vs instrumental
     if request.instrumental:
         parts.append("instrumental, no vocals")
+    elif request.lyrics:
+        parts.append("with vocal performance")
 
-    return ", ".join(parts) if parts else "instrumental music"
+    # Combine into a concise caption
+    caption = ", ".join(parts) if parts else "music"
+
+    # Prepend user's free-text prompt if present (it's the primary input)
+    if request.prompt:
+        caption = f"{request.prompt}, {caption}"
+
+    return caption
 
 
 _running_tasks: dict[str, asyncio.Task] = {}
@@ -85,12 +101,18 @@ class GenerationService:
         if generate_lyrics and not lyrics:
             try:
                 lyrics = await llm_service.generate_lyrics(
-                    prompt, genre=genre, mood=mood, language=language
+                    prompt, genre=genre, mood=mood, language=language,
+                    duration=duration,
                 )
                 if not llm_provider_name:
                     llm_provider_name = "llm"
             except Exception:
                 logger.exception("Lyrics generation failed")
+
+        # Normalise any non-English section tags before handing lyrics to the
+        # music provider — ACE-Step expects English tags like [Verse 1], [Chorus].
+        if lyrics:
+            lyrics = _normalize_section_tags(lyrics)
 
         # Resolve music provider
         music_req = MusicReq(
@@ -104,6 +126,7 @@ class GenerationService:
             instruments=instruments,
             instrumental=instrumental,
             seed=seed,
+            language=language,
         )
         music_provider = provider_manager.get_music_provider()
         music_provider_name = music_provider.config.name
@@ -307,6 +330,10 @@ class GenerationService:
                     "genre": music_req.genre or "",
                     "comment": music_req.prompt,
                     "album": "HikariWave Generations",
+                    "lyrics": gen_record.lyrics if gen_record else "",
+                    "tempo": str(gen_record.tempo) if gen_record and gen_record.tempo else "",
+                    "year": str(datetime.now(UTC).year),
+                    "mood": gen_record.mood if gen_record and gen_record.mood else "",
                 }
                 filename = await storage_service.save_audio_with_metadata(
                     response.audio_data, response.format, audio_meta
@@ -322,15 +349,34 @@ class GenerationService:
                     progress_message="Generating cover art...",
                 )
 
-            await self._repo.update_status(
-                task_id,
-                "completed",
+            completion_fields: dict = dict(
                 audio_path=filename,
                 audio_format=response.format,
                 actual_duration=response.duration,
                 progress=100,
                 progress_message="Complete!",
                 completed_at=datetime.now(UTC),
+            )
+            if response.lrc_lyrics:
+                completion_fields["lrc_lyrics"] = response.lrc_lyrics
+
+            # Save lyrics and LRC as local files (like standard music players)
+            gen_record = await self._repo.get_by_task_id(task_id)
+            if gen_record and gen_record.lyrics:
+                try:
+                    await storage_service.save_lyrics(filename, gen_record.lyrics)
+                except Exception:
+                    logger.exception("Failed to save lyrics file (non-fatal)")
+            if response.lrc_lyrics:
+                try:
+                    await storage_service.save_lrc(filename, response.lrc_lyrics)
+                except Exception:
+                    logger.exception("Failed to save LRC file (non-fatal)")
+
+            await self._repo.update_status(
+                task_id,
+                "completed",
+                **completion_fields,
             )
             logger.info("Generation completed: task_id=%s", task_id)
 
@@ -372,6 +418,16 @@ class GenerationService:
                 task_id, Path(image_path).name, cover_prompt
             )
             logger.info("Cover art saved for task_id=%s", task_id)
+
+            # Embed cover art into audio file
+            gen_updated = await self._repo.get_by_task_id(task_id)
+            if gen_updated and gen_updated.audio_path:
+                try:
+                    await storage_service.embed_cover_art(
+                        gen_updated.audio_path, Path(image_path).name
+                    )
+                except Exception:
+                    logger.exception("Failed to embed cover art into audio (non-fatal)")
 
         except Exception:
             logger.exception(
@@ -453,6 +509,7 @@ class GenerationService:
         # Clean up files
         if gen.audio_path:
             await storage_service.delete_audio(Path(gen.audio_path).name)
+            await storage_service.delete_lyrics(Path(gen.audio_path).name)
         if gen.cover_art_path:
             await storage_service.delete_cover(Path(gen.cover_art_path).name)
         return await self._repo.delete(generation_id)
