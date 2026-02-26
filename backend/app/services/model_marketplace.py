@@ -298,7 +298,7 @@ class ModelMarketplaceService:
                 last_accessed=repo.last_accessed,
             )
             for repo in cache_info.repos
-            if repo.repo_type == "model"
+            if repo.repo_type == "model" and repo.nb_files > 0
         ]
 
     async def delete_cached_model(self, repo_id: str) -> bool:
@@ -331,7 +331,9 @@ class ModelMarketplaceService:
 
             cache_info = await asyncio.to_thread(scan_cache_dir)
             return {
-                repo.repo_id for repo in cache_info.repos if repo.repo_type == "model"
+                repo.repo_id
+                for repo in cache_info.repos
+                if repo.repo_type == "model" and repo.nb_files > 0
             }
         except Exception:
             return set()
