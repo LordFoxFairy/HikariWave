@@ -237,6 +237,7 @@
     "ollama": "Ollama (Local)",
     "openaiCompat": "OpenAI-Compatible",
     "aceStepModels": "ACE-Step Models",
+    "aceStepBase": "Base Model",
     "aceStepLm": "Language Model (5Hz LM)",
     "aceStepDit": "DiT Variants",
     "aceStepLmDesc": "Enables Chain-of-Thought reasoning for better song structure"

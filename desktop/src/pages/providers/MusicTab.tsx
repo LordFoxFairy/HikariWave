@@ -10,6 +10,17 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import {MUSIC_ROUTER_TASKS} from "../../constants/providerOptions";
 import type {MusicProviderConfig, MusicProviderStatus} from "../../types";
 
+/** Repo IDs managed by the ACE-Step section — hide from generic marketplace */
+const ACESTEP_REPO_IDS = new Set([
+    "ACE-Step/Ace-Step1.5",
+    "ACE-Step/acestep-5Hz-lm-0.6B",
+    "ACE-Step/acestep-5Hz-lm-4B",
+    "ACE-Step/acestep-v15-sft",
+    "ACE-Step/acestep-v15-base",
+    "ACE-Step/acestep-v15-turbo-shift1",
+    "ACE-Step/acestep-v15-turbo-shift3",
+]);
+
 export function MusicTab() {
     const {t} = useTranslation();
     const {
@@ -425,6 +436,7 @@ export function MusicTab() {
                 pipelineTag="text-to-audio"
                 searchPlaceholder={t("providers.searchMusicModels")}
                 emptyMessage={t("providers.searchHuggingface")}
+                excludeRepoIds={ACESTEP_REPO_IDS}
                 onModelDownloaded={handleMarketplaceDownload}
             />
 

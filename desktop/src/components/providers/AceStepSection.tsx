@@ -46,6 +46,7 @@ export function AceStepSection() {
         refreshCache();
     };
 
+    const baseModels = models.filter((m) => m.category === "base");
     const lmModels = models.filter((m) => m.category === "lm");
     const ditModels = models.filter((m) => m.category === "dit");
 
@@ -64,6 +65,26 @@ export function AceStepSection() {
 
     return (
         <div className="bg-white rounded-xl border border-border shadow-sm p-5 space-y-5">
+            {/* Base Model */}
+            {baseModels.length > 0 && (
+                <div>
+                    <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-3">
+                        {t("providers.aceStepBase")}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {baseModels.map((m) => (
+                            <AceStepCard
+                                key={m.repo_id}
+                                model={m}
+                                isCached={m.is_cached || cachedRepoIds.has(m.repo_id)}
+                                activeDownload={activeDownloadFor(m.repo_id)}
+                                onDownload={() => handleDownload(m.repo_id)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Language Models */}
             {lmModels.length > 0 && (
                 <div>
@@ -138,9 +159,11 @@ function AceStepCard({
             <div className="flex items-center gap-3 text-[11px] text-text-tertiary">
                 <span>{model.size_str}</span>
                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                    model.category === "lm"
-                        ? "bg-purple-100 text-purple-700"
-                        : "bg-blue-100 text-blue-700"
+                    model.category === "base"
+                        ? "bg-amber-100 text-amber-700"
+                        : model.category === "lm"
+                            ? "bg-purple-100 text-purple-700"
+                            : "bg-blue-100 text-blue-700"
                 }`}>
                     {model.category.toUpperCase()}
                 </span>

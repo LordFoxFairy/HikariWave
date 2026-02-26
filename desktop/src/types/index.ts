@@ -249,7 +249,7 @@ export interface CachedModelInfo {
 export interface AceStepModelInfo {
     name: string;
     repo_id: string;
-    category: "lm" | "dit";
+    category: "base" | "lm" | "dit";
     size_str: string;
     description: string;
     is_cached: boolean;

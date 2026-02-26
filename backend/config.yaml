@@ -44,6 +44,9 @@ music:
         config_path: acestep-v15-turbo
         device: auto
         use_mlx_dit: true
+        # 5Hz LM — Chain-of-Thought reasoning for better structure/quality
+        lm_model_path: acestep-5Hz-lm-4B
+        lm_backend: mlx
     - name: ace-step-v1.5-custom
       label: custom
       model_id: ACE-Step/Ace-Step1.5

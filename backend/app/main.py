@@ -6,15 +6,6 @@ _tc = os.environ.pop("TRANSFORMERS_CACHE", None)
 if _tc and "HF_HOME" not in os.environ:
     os.environ["HF_HOME"] = _tc
 
-# Guard: disable hf_transfer fast-download if the package is not installed.
-# .env may set HF_HUB_ENABLE_HF_TRANSFER=1 for speed, but the Rust-based
-# hf_transfer package is optional and may not be present on all platforms.
-if os.environ.get("HF_HUB_ENABLE_HF_TRANSFER") == "1":
-    try:
-        import hf_transfer  # noqa: F401
-    except ImportError:
-        os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)
-
 import logging
 from contextlib import asynccontextmanager
 
@@ -23,7 +14,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text, update
 
 from backend.app.api.router import api_router
-from backend.app.core.settings import settings
+from backend.app.core.settings import settings  # noqa: E402 — loads .env
+
+# Guard: disable hf_transfer when it cannot work reliably.
+# pydantic-settings re-reads .env above, which may (re-)set
+# HF_HUB_ENABLE_HF_TRANSFER=1.  Disable when the package is missing
+# OR when a custom HF mirror is configured (hf_transfer is incompatible).
+# NOTE: huggingface_hub caches the env var at import time into
+# constants.HF_HUB_ENABLE_HF_TRANSFER, so we must patch that too.
+def _disable_hf_transfer_early() -> None:
+    os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)
+    try:
+        from huggingface_hub import constants as _hfc
+        _hfc.HF_HUB_ENABLE_HF_TRANSFER = False
+    except Exception:
+        pass
+
+if os.environ.get("HF_HUB_ENABLE_HF_TRANSFER") == "1":
+    _hf_ep = os.environ.get("HF_ENDPOINT", "")
+    if _hf_ep and "huggingface.co" not in _hf_ep:
+        _disable_hf_transfer_early()
+    else:
+        try:
+            import hf_transfer  # noqa: F401
+        except ImportError:
+            _disable_hf_transfer_early()
+
 from backend.app.db.session import engine
 from backend.app.models.database import Base, Generation
 from backend.app.providers.manager import provider_manager

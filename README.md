@@ -159,6 +159,30 @@ make tauri      # Tauri 桌面端（含前端）
 | DiffRhythm | `huggingface` | 支持 | ~45s | 节奏扩散模型 |
 | HeartMuLa | `huggingface` | 支持 | ~30s | 多语言歌曲模型 |
 
+### ACE-Step 模型下载
+
+ACE-Step 由多个子模型组成，可在应用内 Marketplace 页面下载，也可通过命令行手动下载：
+
+```bash
+# 主模型（必需，~10 GB）
+huggingface-cli download ACE-Step/Ace-Step1.5
+
+# 语言模型（按需选择一个）
+huggingface-cli download ACE-Step/acestep-5Hz-lm-0.6B   # 0.6B 轻量版，~1.2 GB
+huggingface-cli download ACE-Step/acestep-5Hz-lm-4B      # 4B 高质量版，~8 GB
+
+# DiT 变体（可选）
+huggingface-cli download ACE-Step/acestep-v15-sft            # SFT 高质量 50-step
+huggingface-cli download ACE-Step/acestep-v15-base           # Base 适合微调
+huggingface-cli download ACE-Step/acestep-v15-turbo-shift1   # Turbo Shift1
+huggingface-cli download ACE-Step/acestep-v15-turbo-shift3   # Turbo Shift3
+```
+
+> **中国大陆用户**：如果下载速度慢，确保 `.env` 中配置了镜像：
+> ```bash
+> HF_ENDPOINT=https://hf-mirror.com
+> ```
+
 ### ACE-Step 性能参考（Apple Silicon M 系列）
 
 | 歌曲时长 | DiT 扩散 | VAE 解码 | 总耗时 |

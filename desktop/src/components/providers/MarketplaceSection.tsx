@@ -10,6 +10,7 @@ interface MarketplaceSectionProps {
     pipelineTag: string;
     searchPlaceholder: string;
     emptyMessage: string;
+    excludeRepoIds?: Set<string>;
     onModelDownloaded?: (repoId: string) => void;
 }
 
@@ -17,6 +18,7 @@ export function MarketplaceSection({
                                        pipelineTag,
                                        searchPlaceholder,
                                        emptyMessage,
+                                       excludeRepoIds,
                                        onModelDownloaded,
                                    }: MarketplaceSectionProps) {
     const {t} = useTranslation();
@@ -57,6 +59,11 @@ export function MarketplaceSection({
             .filter((d) => d.status === "pending" || d.status === "downloading")
             .map((d) => [d.repo_id, d]),
     );
+
+    // Filter out models managed by dedicated sections (e.g. ACE-Step)
+    const filteredResults = excludeRepoIds
+        ? searchResults.filter((m) => !excludeRepoIds.has(m.id))
+        : searchResults;
 
     const handleDownload = async (repoId: string) => {
         await startDownload(repoId);
@@ -102,9 +109,9 @@ export function MarketplaceSection({
                     <Loader2 className="w-5 h-5 animate-spin text-text-tertiary"/>
                     <span className="text-sm text-text-tertiary ml-2">{t("providers.searching")}</span>
                 </div>
-            ) : searchResults.length > 0 ? (
+            ) : filteredResults.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                    {searchResults.map((model) => (
+                    {filteredResults.map((model) => (
                         <MarketplaceCard
                             key={model.id}
                             model={model}

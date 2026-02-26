@@ -257,10 +257,19 @@ def _init_llm(
     if not target.exists():
         repo_id = _KNOWN_LM_REPOS.get(lm_model_path)
         if repo_id:
+            # Try to resolve from local cache only — never block on a download
+            # during model loading.  Users should download via the marketplace.
             from huggingface_hub import snapshot_download
 
-            logger.info("Downloading LM %s from HF cache …", repo_id)
-            cache_path = snapshot_download(repo_id=repo_id)
+            try:
+                cache_path = snapshot_download(
+                    repo_id=repo_id, local_files_only=True,
+                )
+            except Exception:
+                raise RuntimeError(
+                    f"LM model '{repo_id}' is not fully downloaded. "
+                    f"Please download it from the marketplace first."
+                )
             target.symlink_to(cache_path)
             logger.info("Symlinked %s → %s", target, cache_path)
         else:

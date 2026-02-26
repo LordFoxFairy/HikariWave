@@ -124,9 +124,20 @@ class BaseMusicProvider(ABC):
         try:
             from huggingface_hub import scan_cache_dir
 
+            from backend.app.utils.hf_cache import is_download_complete
+
             cache_info = scan_cache_dir()
             cached_ids = {
-                repo.repo_id for repo in cache_info.repos if repo.repo_type == "model"
+                repo.repo_id
+                for repo in cache_info.repos
+                if repo.repo_type == "model"
+                and repo.nb_files > 0
+                and is_download_complete(
+                    repo.repo_path,
+                    frozenset(
+                        f.file_name for rev in repo.revisions for f in rev.files
+                    ),
+                )
             }
         except Exception:
             return False
