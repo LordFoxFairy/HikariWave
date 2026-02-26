@@ -1,4 +1,5 @@
 import type {
+    AceStepModelInfo,
     CachedModelInfo,
     CoverArtRequest,
     CoverArtResponse,
@@ -263,6 +264,11 @@ export const api = {
     },
 
     // ---- Marketplace ----
+
+    async getAceStepModels(): Promise<AceStepModelInfo[]> {
+        const res = await request<{ models: AceStepModelInfo[] }>("/marketplace/acestep/models");
+        return res.models;
+    },
 
     searchModels(query: string, pipelineTag: string, sort = "downloads", limit = 20) {
         const params = new URLSearchParams({

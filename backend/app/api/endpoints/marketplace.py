@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from backend.app.api.dependencies import get_marketplace_service
 from backend.app.schemas.marketplace import (
+    AceStepModelsResponse,
     CachedModelsResponse,
     DeleteCacheResponse,
     DownloadListResponse,
@@ -14,6 +15,15 @@ from backend.app.schemas.marketplace import (
 from backend.app.services.model_marketplace import ModelMarketplaceService
 
 router = APIRouter(prefix="/marketplace", tags=["marketplace"])
+
+
+@router.get("/acestep/models", response_model=AceStepModelsResponse)
+async def list_acestep_models(
+    svc: ModelMarketplaceService = Depends(get_marketplace_service),
+):
+    """Return curated list of ACE-Step sub-models with download status."""
+    models = await svc.list_acestep_models()
+    return AceStepModelsResponse(models=models)
 
 
 @router.get("/search", response_model=HFModelSearchResponse)

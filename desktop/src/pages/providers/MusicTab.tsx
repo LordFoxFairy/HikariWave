@@ -5,6 +5,7 @@ import {useProviderStore} from "../../stores/providerStore";
 import {api} from "../../services/api";
 import {SectionHeader} from "../../components/providers/SectionHeader";
 import {MarketplaceSection} from "../../components/providers/MarketplaceSection";
+import {AceStepSection} from "../../components/providers/AceStepSection";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import {MUSIC_ROUTER_TASKS} from "../../constants/providerOptions";
 import type {MusicProviderConfig, MusicProviderStatus} from "../../types";
@@ -413,6 +414,10 @@ export function MusicTab() {
                     </div>
                 </>
             )}
+
+            {/* ACE-Step Models */}
+            <SectionHeader icon={Zap} title={t("providers.aceStepModels")}/>
+            <AceStepSection/>
 
             {/* Model Marketplace */}
             <SectionHeader icon={Search} title={t("providers.modelMarketplace")}/>

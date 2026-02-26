@@ -235,7 +235,11 @@
     "files": "个文件",
     "openrouter": "OpenRouter",
     "ollama": "Ollama (本地)",
-    "openaiCompat": "OpenAI 兼容"
+    "openaiCompat": "OpenAI 兼容",
+    "aceStepModels": "ACE-Step 模型",
+    "aceStepLm": "语言模型 (5Hz LM)",
+    "aceStepDit": "DiT 变体",
+    "aceStepLmDesc": "启用思维链推理，提升歌曲结构质量"
   },
   "settings": {
     "title": "设置",

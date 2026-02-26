@@ -235,7 +235,11 @@
     "files": "files",
     "openrouter": "OpenRouter",
     "ollama": "Ollama (Local)",
-    "openaiCompat": "OpenAI-Compatible"
+    "openaiCompat": "OpenAI-Compatible",
+    "aceStepModels": "ACE-Step Models",
+    "aceStepLm": "Language Model (5Hz LM)",
+    "aceStepDit": "DiT Variants",
+    "aceStepLmDesc": "Enables Chain-of-Thought reasoning for better song structure"
   },
   "settings": {
     "title": "Settings",

@@ -61,3 +61,16 @@ class CachedModelsResponse(BaseModel):
 class DeleteCacheResponse(BaseModel):
     success: bool
     message: str
+
+
+class AceStepModelInfo(BaseModel):
+    name: str
+    repo_id: str
+    category: str  # "lm" | "dit"
+    size_str: str
+    description: str
+    is_cached: bool
+
+
+class AceStepModelsResponse(BaseModel):
+    models: list[AceStepModelInfo]

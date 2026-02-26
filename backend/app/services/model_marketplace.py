@@ -4,6 +4,7 @@ import threading
 import uuid
 
 from backend.app.schemas.marketplace import (
+    AceStepModelInfo,
     CachedModelInfo,
     DownloadProgress,
     HFModelDetail,
@@ -11,6 +12,51 @@ from backend.app.schemas.marketplace import (
 )
 
 logger = logging.getLogger(__name__)
+
+ACESTEP_MODELS: list[dict[str, str]] = [
+    {
+        "name": "acestep-5Hz-lm-0.6B",
+        "repo_id": "ACE-Step/acestep-5Hz-lm-0.6B",
+        "category": "lm",
+        "size_str": "~1.2 GB",
+        "description": "5Hz LM 0.6B — lightweight",
+    },
+    {
+        "name": "acestep-5Hz-lm-4B",
+        "repo_id": "ACE-Step/acestep-5Hz-lm-4B",
+        "category": "lm",
+        "size_str": "~8 GB",
+        "description": "5Hz LM 4B — best quality",
+    },
+    {
+        "name": "acestep-v15-sft",
+        "repo_id": "ACE-Step/acestep-v15-sft",
+        "category": "dit",
+        "size_str": "~4 GB",
+        "description": "DiT SFT — high quality 50-step",
+    },
+    {
+        "name": "acestep-v15-base",
+        "repo_id": "ACE-Step/acestep-v15-base",
+        "category": "dit",
+        "size_str": "~4 GB",
+        "description": "DiT Base — good for fine-tuning",
+    },
+    {
+        "name": "acestep-v15-turbo-shift1",
+        "repo_id": "ACE-Step/acestep-v15-turbo-shift1",
+        "category": "dit",
+        "size_str": "~4 GB",
+        "description": "DiT Turbo Shift1",
+    },
+    {
+        "name": "acestep-v15-turbo-shift3",
+        "repo_id": "ACE-Step/acestep-v15-turbo-shift3",
+        "category": "dit",
+        "size_str": "~4 GB",
+        "description": "DiT Turbo Shift3",
+    },
+]
 
 
 class _ProgressTracker:
@@ -270,6 +316,14 @@ class ModelMarketplaceService:
             return False
 
         return await asyncio.to_thread(_delete)
+
+    async def list_acestep_models(self) -> list[AceStepModelInfo]:
+        """Return the curated ACE-Step sub-model list with download status."""
+        cached_ids = await self._get_cached_ids()
+        return [
+            AceStepModelInfo(**m, is_cached=m["repo_id"] in cached_ids)
+            for m in ACESTEP_MODELS
+        ]
 
     async def _get_cached_ids(self) -> set[str]:
         try:

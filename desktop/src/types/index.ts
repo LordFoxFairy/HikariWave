@@ -246,4 +246,13 @@ export interface CachedModelInfo {
     last_accessed: number;
 }
 
+export interface AceStepModelInfo {
+    name: string;
+    repo_id: string;
+    category: "lm" | "dit";
+    size_str: string;
+    description: string;
+    is_cached: boolean;
+}
+
 export type ProviderTab = "llm" | "music";
