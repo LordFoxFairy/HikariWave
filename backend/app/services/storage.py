@@ -20,19 +20,21 @@ class StorageService:
         self.lyrics_dir = self.base_dir / "lyrics"
         self.lyrics_dir.mkdir(parents=True, exist_ok=True)
 
+    @staticmethod
+    def _safe_path(base_dir: Path, filename: str) -> Path | None:
+        """Resolve a filename under base_dir, guarding against path traversal."""
+        candidate = (base_dir / filename).resolve()
+        if not candidate.is_relative_to(base_dir.resolve()):
+            return None
+        if not candidate.exists():
+            return None
+        return candidate
+
     async def get_audio_path(self, filename: str) -> Path | None:
-        path = self.audio_dir / filename
-        exists = await asyncio.to_thread(path.exists)
-        if exists:
-            return path
-        return None
+        return await asyncio.to_thread(self._safe_path, self.audio_dir, filename)
 
     async def get_cover_path(self, filename: str) -> Path | None:
-        path = self.covers_dir / filename
-        exists = await asyncio.to_thread(path.exists)
-        if exists:
-            return path
-        return None
+        return await asyncio.to_thread(self._safe_path, self.covers_dir, filename)
 
     async def delete_audio(self, filename: str) -> bool:
         path = self.audio_dir / filename
@@ -79,9 +81,7 @@ class StorageService:
         return filename
 
     async def get_lyrics_path(self, filename: str) -> Path | None:
-        path = self.lyrics_dir / filename
-        exists = await asyncio.to_thread(path.exists)
-        return path if exists else None
+        return await asyncio.to_thread(self._safe_path, self.lyrics_dir, filename)
 
     async def delete_lyrics(self, audio_filename: str) -> None:
         """Delete .txt and .lrc files matching the audio basename."""

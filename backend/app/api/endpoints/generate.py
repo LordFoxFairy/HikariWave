@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from backend.app.api.dependencies import get_generation_service, get_llm_service
+from backend.app.core.settings import settings
 from backend.app.schemas.generation import (
     CoverArtRequest,
     CoverArtResponse,
@@ -24,8 +25,8 @@ from backend.app.schemas.generation import (
     TitleGenerationRequest,
     TitleGenerationResponse,
 )
-from backend.app.services.music_generation import GenerationService
 from backend.app.services.llm_service import LLMService
+from backend.app.services.music_generation import GenerationService
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +72,21 @@ async def _save_upload(upload: UploadFile) -> str:
     _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     suffix = Path(upload.filename or "audio").suffix.lower()
     if suffix not in _ALLOWED_AUDIO_EXTS:
+        allowed = ", ".join(_ALLOWED_AUDIO_EXTS)
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported audio format: {suffix}. Allowed: {', '.join(_ALLOWED_AUDIO_EXTS)}",
+            detail=f"Unsupported audio format: {suffix}. "
+            f"Allowed: {allowed}",
         )
     dest = _UPLOAD_DIR / f"{__import__('uuid').uuid4().hex}{suffix}"
-    content = await upload.read()
-    dest.write_bytes(content)
+    total = 0
+    with dest.open("wb") as f:
+        while chunk := await upload.read(8192):
+            total += len(chunk)
+            if total > settings.max_upload_size:
+                dest.unlink(missing_ok=True)
+                raise HTTPException(413, "File too large")
+            f.write(chunk)
     return str(dest)
 
 

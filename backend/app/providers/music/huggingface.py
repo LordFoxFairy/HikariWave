@@ -134,8 +134,7 @@ class HuggingFaceMusicProvider(BaseMusicProvider):
     async def generate(
         self, request: MusicGenerationRequest,
     ) -> MusicGenerationResponse:
-        if not self.is_loaded:
-            await self.load_model()
+        await self.ensure_loaded()
 
         if self._model is None:
             raise RuntimeError(

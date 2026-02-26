@@ -1,3 +1,4 @@
+import asyncio
 from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, Field
@@ -86,6 +87,7 @@ class BaseMusicProvider(ABC):
     def __init__(self, config: MusicProviderConfig):
         self.config = config
         self._model = None
+        self._load_lock = asyncio.Lock()
 
     @abstractmethod
     async def load_model(self) -> None: ...
@@ -104,6 +106,14 @@ class BaseMusicProvider(ABC):
     @property
     def is_loaded(self) -> bool:
         return self._model is not None
+
+    async def ensure_loaded(self) -> None:
+        """Load model with lock to prevent concurrent double-loading."""
+        if self.is_loaded:
+            return
+        async with self._load_lock:
+            if not self.is_loaded:
+                await self.load_model()
 
     def check_downloaded(self) -> bool:
         """Return ``True`` if model weights are available locally.

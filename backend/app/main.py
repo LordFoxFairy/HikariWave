@@ -1,4 +1,5 @@
 import os
+import shutil
 
 # Migrate deprecated TRANSFORMERS_CACHE to HF_HOME before transformers is imported.
 _tc = os.environ.pop("TRANSFORMERS_CACHE", None)
@@ -70,6 +71,9 @@ async def lifespan(app: FastAPI):
                 progress_message="Server restarted",
             )
         )
+    # Clean up stale upload temp directory from previous runs
+    from backend.app.api.endpoints.generate import _UPLOAD_DIR
+    shutil.rmtree(_UPLOAD_DIR, ignore_errors=True)
     # Load provider config
     provider_manager.load_config()
     # Models are downloaded on-demand via the marketplace/providers API

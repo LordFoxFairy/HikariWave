@@ -128,8 +128,7 @@ class AceStepHandlerProvider(BaseMusicProvider):
     async def generate(
         self, request: MusicGenerationRequest,
     ) -> MusicGenerationResponse:
-        if not self.is_loaded:
-            await self.load_model()
+        await self.ensure_loaded()
 
         if self._handler is None:
             raise RuntimeError("ACE-Step handler not loaded. Check logs.")

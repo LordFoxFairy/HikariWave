@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     # API
     api_prefix: str = "/api/v1"
     port: int = 23456
-    cors_origins: list[str] = ["*"]
+    cors_origins: list[str] = ["http://localhost:1420", "tauri://localhost"]
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./hikariwave.db"
@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     storage_dir: str = str(Path(__file__).resolve().parent.parent.parent / "storage")
     audio_subdir: str = "audio"
     covers_subdir: str = "covers"
+
+    # Upload limits
+    max_upload_size: int = 100 * 1024 * 1024  # 100 MB
 
     class Config:
         env_file = str(Path(__file__).resolve().parent.parent.parent.parent / ".env")
