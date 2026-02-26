@@ -27,6 +27,9 @@ dependencies = [
 [project.optional-dependencies]
 # Base GPU support — needed for all HuggingFace music models
 gpu = []
+# Multi-threaded HF downloads (Rust-based, optional)
+# Usage: uv sync --extra fast-download
+fast-download = ["hf_transfer>=0.1.0"]
 # ACE-Step v1.5 vocal music generation
 # Usage: uv sync --extra ace-step
 ace-step = [

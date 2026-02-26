@@ -6,6 +6,15 @@ _tc = os.environ.pop("TRANSFORMERS_CACHE", None)
 if _tc and "HF_HOME" not in os.environ:
     os.environ["HF_HOME"] = _tc
 
+# Guard: disable hf_transfer fast-download if the package is not installed.
+# .env may set HF_HUB_ENABLE_HF_TRANSFER=1 for speed, but the Rust-based
+# hf_transfer package is optional and may not be present on all platforms.
+if os.environ.get("HF_HUB_ENABLE_HF_TRANSFER") == "1":
+    try:
+        import hf_transfer  # noqa: F401
+    except ImportError:
+        os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)
+
 import logging
 from contextlib import asynccontextmanager
 
